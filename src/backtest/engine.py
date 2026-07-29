@@ -196,12 +196,20 @@ class BacktestEngine:
                  initial_capital: float = 100_000,
                  commission_rate: float = 0.0003,
                  slippage: float = 0.001,
-                 use_market_filter: bool = False):
+                 use_market_filter: bool = False,
+                 use_risk_manager: bool = True):
         self.initial_capital = initial_capital
         self.commission_rate = commission_rate
         self.slippage = slippage
         self.use_market_filter = use_market_filter
+        self.use_risk_manager = use_risk_manager
         self.portfolio = Portfolio(initial_capital)
+        # 风控管理器
+        self.risk = None
+        if use_risk_manager:
+            from src.risk.manager import RiskManager
+            self.risk = RiskManager(initial_capital=initial_capital)
+        self._risk_signals = []  # 风控产生的信号记录
 
     def run(self, strategy, data: pd.DataFrame,
             position_size_pct: float = 0.2) -> dict:
@@ -328,14 +336,29 @@ class BacktestEngine:
             prices = {signal.symbol: row["close"]}
             self.portfolio.mark_to_market(date, prices)
 
+            # === 风控检查 (v5.5) ===
+            if self.risk:
+                self.risk.update_equity(self.portfolio.total_value)
+                # 检查是否需要熔断跳过多头买入
+                if signal.action == "BUY" and self.risk.circuit_triggered:
+                    self._risk_signals.append({
+                        "date": date, "action": "RISK_SKIP",
+                        "reason": f"熔断: {self.risk.circuit_reason}"
+                    })
+
         # 计算绩效指标
         metrics = self._calc_metrics()
 
-        return {
+        result = {
             "portfolio": self.portfolio,
             "signals": signals_log,
             "metrics": metrics,
         }
+        if self.risk:
+            result["risk_report"] = self.risk.report()
+            result["risk_logs"] = self.risk.get_recent_logs(20)
+            result["risk_signals"] = self._risk_signals
+        return result
 
     def _calc_metrics(self) -> dict:
         """从 portfolio.daily_values 计算绩效指标"""

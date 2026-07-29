@@ -180,8 +180,10 @@ const NAV=[
 {id:'factors',ic:'🧬',lb:'因子体系'},
 {id:'factor_builder',ic:'🔧',lb:'因子策略构建器'},
 {id:'strategy_lab',ic:'🧪',lb:'AI策略战法'},
+{id:'strategy_bank',ic:'🏦',lb:'我的策略银行'},
 ]},
 {sec:'指数',items:[{id:'valuation',ic:'📊',lb:'指数估值'}]},
+{sec:'数据',items:[{id:'database',ic:'🗄️',lb:'数据库管理'}]},
 {sec:'AI智能',items:[
 {id:'aichat',ic:'🤖',lb:'AI对话'},
 {id:'aireview',ic:'📝',lb:'AI复盘'},
@@ -235,7 +237,9 @@ case 'strategies':c.innerHTML=buildStrategies();loadStrategies();break;
 case 'factors':c.innerHTML=buildFactors();loadFactors();break;
 case 'factor_builder':c.innerHTML=buildFactorBuilder();loadFactorBuilder();break;
 case 'strategy_lab':c.innerHTML=buildStrategyLab();break;
+case 'strategy_bank':c.innerHTML=buildStrategyBank();loadStrategyBank();break;
 case 'valuation':c.innerHTML=buildValuation();loadValuation();break;
+case 'database':c.innerHTML=buildDatabase();loadDatabase();break;
 case 'aichat':c.innerHTML=buildAIChat();break;
 case 'aireview':c.innerHTML=buildAIReview();break;
 case 'aimarket':c.innerHTML=buildAIMarket();break;
@@ -486,7 +490,61 @@ r.factors.forEach(f=>{h+=`<tr><td class="cb">${f.name}</td><td>${f.category}</td
 h+='</tbody></table>';document.getElementById('factorList').innerHTML=h;}catch(e){}
 }
 function buildValuation(){return `<div class="card"><h3>📊 指数估值</h3><div id="valContent">加载中...</div></div>`;}
-function buildAIChat(){
+function buildStrategyBank(){return `<div class="card"><h3>🏦 我的策略银行</h3><div class="sub">你创建的所有策略 · 回测记录 · 收藏复用</div>
+<div id="bankContent">加载中...</div></div>`;}
+async function loadStrategyBank(){
+try{const r=await api('/api/strategy_bank');
+if(!r.strategies||!r.strategies.length){document.getElementById('bankContent').innerHTML='<p style="color:var(--t3)">策略银行是空的。去 AI策略战法 或 因子策略构建器 创建你的第一个策略吧!</p>';return}
+let h=`<p style="color:var(--t2);margin-bottom:12px">共 <b>${r.stats?.strategies||0}</b> 个策略 | ${r.stats?.backtests||0} 次回测 | ${r.stats?.notes||0} 条笔记</p>`;
+h+='<table><thead><tr><th>#</th><th>策略名</th><th>逻辑</th><th>因子数</th><th>标签</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
+r.strategies.forEach((s,i)=>{
+h+=`<tr><td>${i+1}</td><td class="cb">${s.name}</td><td>${s.logic}≥${s.threshold}</td>
+<td>${s.conditions?.length||0}</td><td style="font-size:10px">${s.tags||''}</td><td style="font-size:10px;color:var(--t3)">${(s.created_at||'').slice(0,10)}</td>
+<td><button class="btn btn-sm btn-o" onclick="loadStrategyDetail(${s.id})">查看</button>
+<button class="btn btn-sm btn-o" onclick="deleteStrategy(${s.id})">删除</button></td></tr>`;
+});
+h+='</tbody></table><div id="bankDetail" style="margin-top:14px"></div>';
+document.getElementById('bankContent').innerHTML=h;}catch(e){}
+}
+async function loadStrategyDetail(sid){
+try{const r=await api('/api/strategy_bank/'+sid);
+if(!r.strategy)return;
+let h=`<div class="card"><h4>${r.strategy.name}</h4>`;
+h+=`<p style="color:var(--t2)">逻辑: ${r.strategy.logic} | 阈值: ${r.strategy.threshold}</p>`;
+h+='<p style="color:var(--t2)">因子条件:</p><ul>';
+r.strategy.conditions.forEach(c=>{h+=`<li>${c.factor} ${c.operator} ${c.threshold} (权重${c.weight})</li>`;});
+h+='</ul>';
+if(r.backtests&&r.backtests.length){
+h+='<p style="color:var(--t2);margin-top:8px">回测记录:</p><table><thead><tr><th>标的</th><th>夏普</th><th>收益</th><th>回撤</th><th>胜率</th><th>时间</th></tr></thead><tbody>';
+r.backtests.forEach(b=>{h+=`<tr><td>${b.symbol}</td><td>${b.sharpe?.toFixed(2)||'-'}</td><td>${b.total_return||'-'}</td><td>${b.max_dd||'-'}</td><td>${b.win_rate||'-'}</td><td style="font-size:10px;color:var(--t3)">${(b.run_at||'').slice(0,16)}</td></tr>`;});
+h+='</tbody></table>';}
+h+='</div>';document.getElementById('bankDetail').innerHTML=h;}catch(e){}
+}
+async function deleteStrategy(sid){if(confirm('确定删除这个策略?')){await api('/api/strategy_bank/'+sid,{method:'DELETE'});loadStrategyBank();}}
+function buildDatabase(){return `<div class="card"><h3>🗄️ 数据库管理</h3><div class="sub">SQLite统一行情库 · 30,000+条数据 · 替代CSV缓存</div>
+<div class="frow"><button class="btn btn-p" onclick="loadDatabase()">刷新</button>
+<button class="btn btn-o" onclick="migrateData()">从CSV迁移数据</button></div>
+<div id="dbContent" style="margin-top:12px">加载中...</div></div>`;}
+function buildDatabase(){return `<div class="card"><h3>🗄️ 数据库管理</h3><div class="sub">SQLite统一行情库 · 30,000+条数据 · 替代CSV缓存</div>
+<div class="frow"><button class="btn btn-p" onclick="loadDatabase()">刷新</button>
+<button class="btn btn-o" onclick="migrateData()">从CSV迁移数据</button></div>
+<div id="dbContent" style="margin-top:12px">加载中...</div></div>`;}
+async function loadDatabase(){
+try{const r=await api('/api/database/status');
+let h=`<table><thead><tr><th>代码</th><th>市场</th><th>起始日期</th><th>最新日期</th><th>数据条数</th><th>更新时间</th></tr></thead><tbody>`;
+if(r.stocks)r.stocks.forEach(s=>{
+h+=`<tr><td class="cb">${s.symbol}</td><td>${s.market}</td><td>${s.first_date}</td><td>${s.last_date}</td><td>${s.row_count}</td><td style="font-size:10px;color:var(--t3)">${s.updated_at||''}</td></tr>`;
+});
+h+='</tbody></table>';
+h+=`<p style="margin-top:12px;color:var(--t2)">总计: <b>${r.total_stocks||0}</b> 只股票, <b>${r.total_rows||0}</b> 条数据 | 数据库: ${r.db_path||''}</p>`;
+document.getElementById('dbContent').innerHTML=h;}catch(e){}
+}
+async function migrateData(){
+document.getElementById('dbContent').innerHTML='<span class="info">迁移中...</span>';
+try{const r=await api('/api/database/migrate');
+document.getElementById('dbContent').innerHTML=`<span class="ok">迁移完成! 处理了${r.count||0}个文件</span>`;
+loadDatabase();}catch(e){document.getElementById('dbContent').innerHTML=`<span class="err">${e}</span>`}
+}
 return `<div class="card"><h3>🤖 AI 量化助手</h3><div class="sub">和AI聊量化 · 策略 · 市场 · 复盘</div>
 <div style="display:flex;gap:8px;margin-bottom:12px">
 <input id="aiMsg" placeholder="输入问题... 如: 分析一下最近的行情" style="flex:1"
@@ -1244,6 +1302,21 @@ def api_ai_create_strategy():
         strategy = composer.to_strategy(StrategyConfig(name=sym))
         r = BacktestEngine().run(strategy, data)
 
+        # 自动存入策略银行
+        saved_id = None
+        try:
+            from src.data.strategy_store import bank
+            saved_id = bank.save_strategy(
+                name=strategy_def.get("name", "AI策略"),
+                conditions=strategy_def.get("conditions", []),
+                logic=logic, threshold=threshold,
+                description=strategy_def.get("explanation", ""),
+                tags="AI生成"
+            )
+            if saved_id:
+                bank.save_backtest(saved_id, sym, r["metrics"])
+        except: pass
+
         return jsonify({
             "name": strategy_def.get("name", "AI策略"),
             "explanation": strategy_def.get("explanation", ""),
@@ -1251,6 +1324,7 @@ def api_ai_create_strategy():
             "logic": logic,
             "threshold": threshold,
             "metrics": r["metrics"],
+            "saved_id": saved_id,
             "trades": [{"date": t["date"], "action": t["action"],
                        "price": round(t["price"],2), "qty": t["quantity"]}
                       for t in r["portfolio"].trade_log[-10:]]
@@ -1284,6 +1358,65 @@ def api_factor_backtest():
         return jsonify({"metrics": r["metrics"]})
     except Exception as e:
         return jsonify({"error": str(e)})
+
+@app.route('/api/database/status')
+def api_database_status():
+    try:
+        from src.data.market_db import market_db
+        meta = market_db.get_meta_summary()
+        total_rows = sum(m["row_count"] for m in meta)
+        return jsonify({"stocks": meta, "total_stocks": len(meta), "total_rows": total_rows,
+                       "db_path": "D:/trading_data/market_data.db"})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+@app.route('/api/database/migrate')
+def api_database_migrate():
+    import os, pandas as pd
+    from src.data.market_db import market_db
+    cache_dir = "D:/trading_data/cache"
+    count = 0
+    if os.path.exists(cache_dir):
+        for f in os.listdir(cache_dir):
+            if not f.endswith('.csv'): continue
+            parts = f.replace('.csv','').split('_')
+            if len(parts) >= 3:
+                try:
+                    df = pd.read_csv(os.path.join(cache_dir, f), parse_dates=['date'])
+                    market_db.insert_kline(parts[1], parts[0], df)
+                    count += 1
+                except: pass
+    return jsonify({"count": count, "ok": True})
+
+@app.route('/api/strategy_bank', methods=['GET','POST'])
+def api_strategy_bank():
+    from src.data.strategy_store import bank
+    if request.method == 'POST':
+        d = request.json
+        sid = bank.save_strategy(
+            name=d.get("name","策略"),
+            conditions=d.get("conditions",[]),
+            logic=d.get("logic","weighted"),
+            threshold=float(d.get("threshold",3.0)),
+            description=d.get("description",""),
+            tags=d.get("tags",""),
+        )
+        return jsonify({"id": sid, "ok": True})
+    else:
+        tag = request.args.get("tag")
+        strategies = bank.list_strategies(tag=tag)
+        return jsonify({"strategies": strategies, "stats": bank.stats()})
+
+@app.route('/api/strategy_bank/<int:sid>', methods=['GET','DELETE'])
+def api_strategy_detail(sid):
+    from src.data.strategy_store import bank
+    if request.method == 'DELETE':
+        bank.delete_strategy(sid)
+        return jsonify({"ok": True})
+    s = bank.get_strategy(sid)
+    if not s: return jsonify({"error": "策略不存在"}), 404
+    bts = bank.get_backtests(strategy_id=sid)
+    return jsonify({"strategy": s, "backtests": bts})
 
 @app.route('/api/chart_data')
 def api_chart_data():

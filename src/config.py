@@ -45,6 +45,15 @@ DEFAULTS = {
     "take_profit_pct": 0.15,
     "max_drawdown_limit": 0.25,
 
+    # 移动止损
+    "risk_trailing_stop_pct": 0.05,       # 从最高点回撤5%止损
+    # 熔断
+    "risk_max_drawdown_pct": 0.10,        # 总回撤10%熔断
+    "risk_enable_circuit_breaker": True,   # 启用熔断
+    # 凯利仓位
+    "risk_kelly_fraction": 0.5,            # 半凯利=0.5, 全凯利=1.0
+    "risk_max_single_position_pct": 0.15,  # 单只股票仓位上限15%
+
     # ---- A股特殊规则 ----
     "a_stock_lot_size": 100,
     "a_stock_stamp_tax": 0.001,
