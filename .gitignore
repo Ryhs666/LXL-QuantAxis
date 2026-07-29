@@ -1,0 +1,36 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.spec
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data (user-specific)
+D:/trading_data/
+*.db
+*.csv
+!requirements.txt
+
+# Config (may contain API keys)
+ai_config.json
+config.json
+config.yaml
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temp
+*.log
+*.tmp
+_patch*.py
