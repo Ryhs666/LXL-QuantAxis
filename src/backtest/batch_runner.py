@@ -295,6 +295,11 @@ def _make_strategy_instance(strategy_key: str, params: dict, symbol: str):
     # 先试经典策略库
     if strategy_key in STRATEGIES:
         cls = STRATEGIES[strategy_key]["class"]
+        # 策略集成特殊处理
+        if cls is None and strategy_key == "ensemble":
+            from src.strategies.ensemble import create_ensemble, EnsembleStrategy
+            # 返回一个包装了集成的策略对象
+            return EnsembleStrategy(symbol, params.get("threshold", 0.5))
         strategy_cfg = StrategyConfig(
             name=symbol,
             initial_capital=cfg.initial_capital,

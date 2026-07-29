@@ -656,8 +656,15 @@ class MomentumStrategy(BaseStrategy):
 from src.strategies.adaptive import AdaptiveCompositeStrategy
 from src.strategies.short_strategies import TrendShortStrategy, DualDirectionStrategy
 from src.strategies.regime_strategy import RegimeAwareStrategy
+from src.strategies.ensemble import StrategyEnsemble, create_ensemble
 
 STRATEGIES = {
+    "ensemble": {
+        "name": "策略集成投票",
+        "class": None,  # 特殊: 用 create_ensemble() 创建
+        "params": {},
+        "description": "多策略加权投票,动态调整权重,综合决策",
+    },
     "adaptive": {
         "name": "自适应复合",
         "class": AdaptiveCompositeStrategy,
