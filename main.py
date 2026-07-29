@@ -1678,4 +1678,16 @@ def _print_diagnosis_report(symbol, market, data, strategies_results, current_fa
 # ============================================================
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--report":
+        print("\n  ⏳ 生成每日简报...")
+        try:
+            from src.report.generator import generate_daily_report
+            path = generate_daily_report()
+            print(f"\n  ✅ 简报已生成: {path}")
+            import webbrowser
+            webbrowser.open(f"file:///{path.replace(chr(92), '/')}")
+        except Exception as e:
+            print(f"\n  ❌ 生成失败: {e}")
+    else:
+        main()
