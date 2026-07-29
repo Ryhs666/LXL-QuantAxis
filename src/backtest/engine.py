@@ -197,12 +197,19 @@ class BacktestEngine:
                  commission_rate: float = 0.0003,
                  slippage: float = 0.001,
                  use_market_filter: bool = False,
-                 use_risk_manager: bool = True):
+                 use_risk_manager: bool = True,
+                 # 微观结构 (v6.6)
+                 use_impact_cost: bool = True,
+                 use_limit_order: bool = False,
+                 impact_coefficient: float = 0.1):
         self.initial_capital = initial_capital
         self.commission_rate = commission_rate
         self.slippage = slippage
         self.use_market_filter = use_market_filter
         self.use_risk_manager = use_risk_manager
+        self.use_impact_cost = use_impact_cost
+        self.use_limit_order = use_limit_order
+        self.impact_coefficient = impact_coefficient
         self.portfolio = Portfolio(initial_capital)
         # 风控管理器
         self.risk = None
@@ -210,6 +217,7 @@ class BacktestEngine:
             from src.risk.manager import RiskManager
             self.risk = RiskManager(initial_capital=initial_capital)
         self._risk_signals = []  # 风控产生的信号记录
+        self._fill_stats = {"attempted": 0, "filled": 0, "cancelled": 0}
 
     def run(self, strategy, data: pd.DataFrame,
             position_size_pct: float = 0.2) -> dict:
@@ -287,9 +295,45 @@ class BacktestEngine:
                 "reason": signal.reason,
             })
 
-            # 执行信号
-            exec_price = row["close"] * (1 + self.slippage) if signal.action == "BUY" \
-                else row["close"] * (1 - self.slippage)
+            # 执行信号 — 微观结构模拟 (v6.6)
+            base_price = row["close"]
+
+            # 1. 冲击成本
+            impact_cost = 0.0
+            if self.use_impact_cost and signal.action in ("BUY", "SELL"):
+                daily_vol = row.get("volume", 1)
+                if daily_vol > 0:
+                    order_ratio = (signal.price * max(signal.quantity, 1)) / (base_price * daily_vol)
+                    if order_ratio > 0.01:  # 超过成交量1%开始计算冲击
+                        impact_cost = self.impact_coefficient * order_ratio
+
+            # 2. 限价单模拟
+            fill_price = base_price
+            filled = True
+            if self.use_limit_order and signal.action == "BUY":
+                self._fill_stats["attempted"] += 1
+                # 模拟排队: 随机0~100, 低于70表示成交
+                queue_pos = __import__('random').randint(0, 100)
+                if queue_pos < 70:
+                    # 成交: 买一价(略低于收盘价)
+                    spread = base_price * __import__('random').uniform(0.0001, 0.001)
+                    fill_price = base_price - spread
+                    self._fill_stats["filled"] += 1
+                else:
+                    filled = False
+                    self._fill_stats["cancelled"] += 1
+
+            if not filled:
+                prices = {signal.symbol: row["close"]}
+                self.portfolio.mark_to_market(date, prices)
+                continue
+
+            # 最终执行价 = 基础价 + 滑点 + 冲击成本
+            exec_price = fill_price
+            if signal.action == "BUY":
+                exec_price = fill_price * (1 + self.slippage + impact_cost)
+            else:
+                exec_price = fill_price * (1 - self.slippage - impact_cost)
 
             if signal.action == "BUY":
                 # 先平空头(如有)
@@ -376,6 +420,53 @@ class BacktestEngine:
             result["risk_signals"] = self._risk_signals
         return result
 
+    @staticmethod
+    def slippage_sensitivity(strategy, data: "pd.DataFrame",
+                             slippages: list = None,
+                             **kwargs) -> "pd.DataFrame":
+        """
+        滑点敏感度分析
+
+        参数:
+          strategy: 策略对象
+          data:     OHLCV 数据
+          slippages: 滑点列表, 默认 [0, 0.001, 0.003, 0.005, 0.01]
+
+        返回:
+          DataFrame: slippage | 年化收益 | 夏普 | 最大回撤 | 交易次数
+        """
+        import pandas as pd
+
+        if slippages is None:
+            slippages = [0, 0.001, 0.003, 0.005, 0.01]
+
+        rows = []
+        for sl in slippages:
+            engine = BacktestEngine(slippage=sl, **kwargs)
+            result = engine.run(strategy, data.copy())
+            m = result["metrics"]
+            try:
+                ret = float(str(m.get("总收益率", "0")).replace("%", "").replace("+", ""))
+            except:
+                ret = 0
+            try:
+                sharpe = float(str(m.get("夏普比率", 0)))
+            except:
+                sharpe = 0
+            try:
+                dd = float(str(m.get("最大回撤", "0")).replace("%", "").replace("-", ""))
+            except:
+                dd = 0
+            rows.append({
+                "滑点": f"{sl*100:.1f}%",
+                "年化收益": round(ret, 2),
+                "夏普比率": round(sharpe, 2),
+                "最大回撤": round(dd, 2),
+                "交易次数": len(result["portfolio"].trade_log),
+            })
+
+        return pd.DataFrame(rows)
+
     def _calc_metrics(self) -> dict:
         """从 portfolio.daily_values 计算绩效指标"""
         from src.backtest.metrics import calc_all_metrics
@@ -384,3 +475,14 @@ class BacktestEngine:
             self.portfolio.trade_log,
             self.initial_capital,
         )
+
+    @property
+    def fill_stats(self) -> dict:
+        """限价单成交统计"""
+        a = self._fill_stats["attempted"]
+        if a == 0:
+            return {"fill_rate": 1.0, "attempted": 0, "filled": 0}
+        return {
+            "fill_rate": round(self._fill_stats["filled"] / a * 100, 1),
+            **self._fill_stats,
+        }
