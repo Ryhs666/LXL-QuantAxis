@@ -11,13 +11,14 @@ from typing import Optional
 
 @dataclass
 class Signal:
-    """一条交易信号"""
+    """一条交易信号 (v7.0: 新增 reason_code)"""
     action: str            # "BUY" / "SELL" / "SHORT" / "COVER" / "HOLD"
     symbol: str            # 股票代码
     date: str              # 信号日期 YYYY-MM-DD
     price: float           # 触发价格
     quantity: int = 0      # 建议数量
-    reason: str = ""       # 信号理由
+    reason: str = ""       # 信号理由(人类可读)
+    reason_code: str = ""  # 决策原因码 (如 REASON_RSI_OVERSOLD)
     confidence: float = 1.0  # 信号置信度 0-1
 
     @property
