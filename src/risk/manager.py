@@ -1,5 +1,5 @@
 """
-RiskManager — 量化风控引擎 (v5.5)
+RiskManager — 量化风控引擎 (v6.5)
 
 核心功能:
   1. 移动止损 (Trailing Stop) — 股价从最高点回撤X%触发平仓
@@ -247,3 +247,171 @@ class RiskManager:
 
     def get_recent_logs(self, n: int = 20) -> list:
         return self.log[-n:]
+
+    # ═══════════════════════════════════════════
+    # 5. 风险平价 (Risk Parity)
+    # ═══════════════════════════════════════════
+
+    @staticmethod
+    def risk_parity(returns: "pd.DataFrame", max_iter: int = 1000) -> dict:
+        """
+        风险平价: 使每只股票的风险贡献相等
+
+        参数:
+          returns: DataFrame, columns=symbols, index=date, values=日收益率
+
+        返回:
+          {weights: {symbol: weight}, risk_contributions: {symbol: pct}, status: str}
+        """
+        import pandas as pd
+        import numpy as np
+
+        symbols = list(returns.columns)
+        n = len(symbols)
+        if n < 2:
+            return {"weights": {symbols[0]: 1.0} if n == 1 else {},
+                    "risk_contributions": {}, "status": "需要至少2只股票"}
+
+        # 协方差矩阵
+        cov = returns.cov().values * 252
+        # 初始等权
+        w = np.ones(n) / n
+
+        def risk_contributions(weights):
+            portfolio_vol = np.sqrt(weights.T @ cov @ weights)
+            marginal_risk = cov @ weights / portfolio_vol
+            return weights * marginal_risk / portfolio_vol
+
+        def objective(weights):
+            rc = risk_contributions(weights)
+            target = 1.0 / n
+            return np.sum((rc - target) ** 2)
+
+        # 约束
+        constraints = [{"type": "eq", "fun": lambda x: np.sum(x) - 1}]
+        bounds = [(0.01, 1.0) for _ in range(n)]
+
+        try:
+            from scipy.optimize import minimize
+            result = minimize(objective, w, method="SLSQP",
+                            bounds=bounds, constraints=constraints,
+                            options={"maxiter": max_iter, "ftol": 1e-12})
+            if result.success:
+                w = result.x
+                w = w / w.sum()
+            else:
+                w = np.ones(n) / n
+        except ImportError:
+            # 无 scipy 时使用简化方法: 1/vol 权重
+            vols = np.sqrt(np.diag(cov))
+            w = (1.0 / vols) / np.sum(1.0 / vols)
+
+        rc = risk_contributions(w) if "risk_contributions" in dir() else w
+
+        weights = {s: round(float(w[i]), 4) for i, s in enumerate(symbols)}
+        risk_contrib = {s: round(float(rc[i]) * 100, 1) for i, s in enumerate(symbols)}
+
+        return {"weights": weights, "risk_contributions": risk_contrib, "status": "ok"}
+
+    # ═══════════════════════════════════════════
+    # 6. Black-Litterman 模型
+    # ═══════════════════════════════════════════
+
+    @staticmethod
+    def black_litterman(returns: "pd.DataFrame",
+                        views: dict = None,
+                        view_confidences: dict = None,
+                        tau: float = 0.05) -> dict:
+        """
+        Black-Litterman: 融合市场均衡收益 + 主观观点 → 后验权重
+
+        参数:
+          returns:    DataFrame, 历史收益率
+          views:      {symbol: expected_excess_return}, 主观预期
+                      例: {"600519": 0.05}  茅台预期超额收益5%
+          view_confidences: {symbol: confidence_0_to_1}, 观点置信度
+          tau:        市场不确定性参数 (默认0.05)
+
+        返回:
+          {weights, expected_returns, posterior_returns, views_used}
+        """
+        import pandas as pd
+        import numpy as np
+
+        symbols = list(returns.columns)
+        n = len(symbols)
+        cov = returns.cov().values * 252
+        risk_free = 0.02
+
+        # 1. 市场均衡收益 (CAPM implied)
+        market_cap_weights = np.ones(n) / n  # 等权代理(无市值数据时)
+        market_return = 0.08  # A股长期年化~8%
+        market_variance = market_cap_weights.T @ cov @ market_cap_weights
+        risk_aversion = (market_return - risk_free) / market_variance
+        pi = risk_aversion * cov @ market_cap_weights  # 均衡超额收益
+
+        if not views:
+            return RiskManager._bl_output(symbols, pi, cov, market_cap_weights,
+                                          {}, "无主观观点,使用市场均衡权重")
+
+        # 2. 构建观点矩阵 P 和 Q
+        views = views or {}
+        view_confidences = view_confidences or {}
+        view_symbols = [s for s in views if s in symbols]
+        k = len(view_symbols)
+
+        if k == 0:
+            return RiskManager._bl_output(symbols, pi, cov, market_cap_weights,
+                                          {}, "无有效观点")
+
+        P = np.zeros((k, n))
+        Q = np.zeros(k)
+        Omega = np.zeros((k, k))
+
+        for i, sym in enumerate(view_symbols):
+            j = symbols.index(sym)
+            P[i, j] = 1.0
+            Q[i] = views[sym]
+            conf = view_confidences.get(sym, 0.5)
+            # 置信度越高, Omega越小(观点越可靠)
+            omega_val = (1.0 / conf - 1.0) * (P[i, :] @ cov @ P[i, :].T)
+            Omega[i, i] = max(omega_val, 1e-6)
+
+        # 3. Black-Litterman 公式
+        tau_sigma_inv = np.linalg.inv(tau * cov)
+        omega_inv = np.linalg.inv(Omega)
+
+        # 后验收益
+        posterior_cov = np.linalg.inv(tau_sigma_inv + P.T @ omega_inv @ P)
+        posterior_pi = posterior_cov @ (tau_sigma_inv @ pi + P.T @ omega_inv @ Q)
+
+        # 后验权重 (最大化 Sharpe)
+        inv_cov = np.linalg.inv(cov)
+        raw_w = inv_cov @ posterior_pi
+        raw_w = np.maximum(raw_w, 0)
+        if raw_w.sum() > 0:
+            posterior_w = raw_w / raw_w.sum()
+        else:
+            posterior_w = np.ones(n) / n
+
+        views_used = {sym: {"view": views[sym],
+                            "confidence": view_confidences.get(sym, 0.5)}
+                      for sym in view_symbols}
+
+        return RiskManager._bl_output(symbols, posterior_pi, posterior_cov,
+                                      posterior_w, views_used, "BL模型完成")
+
+    @staticmethod
+    def _bl_output(symbols, expected_ret, cov, weights, views, status):
+        """格式化BL输出"""
+        import numpy as np
+        n = len(symbols)
+        portfolio_vol = np.sqrt(weights.T @ cov @ weights)
+        return {
+            "weights": {s: round(float(weights[i]), 4) for i, s in enumerate(symbols)},
+            "expected_returns": {s: round(float(expected_ret[i]) * 100, 2)
+                                for i, s in enumerate(symbols)},
+            "portfolio_vol": round(float(portfolio_vol) * 100, 1),
+            "views_used": views,
+            "status": status,
+        }
