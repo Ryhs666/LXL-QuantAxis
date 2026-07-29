@@ -7,9 +7,129 @@ sys.path.insert(0, os.path.dirname(__file__))
 os.chdir(os.path.dirname(__file__))
 
 from flask import Flask, request, jsonify
-from datetime import datetime
+from datetime import datetime, timedelta
+import threading, time
 
 app = Flask(__name__)
+
+# ═══════════════════════════════════════════════════════════
+# Prometheus 监控 (v6.9)
+# ═══════════════════════════════════════════════════════════
+
+class MetricsRegistry:
+    """轻量 Prometheus 监控"""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        # Counter: 信号总数
+        self.strategy_signals_total = 0
+        self.signals_by_action = {"BUY": 0, "SELL": 0, "HOLD": 0, "SHORT": 0, "COVER": 0}
+        # Gauge: 交易延迟(秒)
+        self.trade_execution_latency = 0.0
+        self._latency_samples = []
+        # Gauge: 实时回撤
+        self.portfolio_drawdown_percent = 0.0
+        self.peak_equity = 0
+        # 心跳
+        self.last_signal_time = datetime.now()
+        self.last_data_update = datetime.now()
+        # 启动时间
+        self.start_time = datetime.now()
+
+    def inc_signals(self, action: str = "BUY", count: int = 1):
+        with self._lock:
+            self.strategy_signals_total += count
+            self.signals_by_action[action] = self.signals_by_action.get(action, 0) + count
+            self.last_signal_time = datetime.now()
+
+    def observe_latency(self, seconds: float):
+        with self._lock:
+            self.trade_execution_latency = seconds
+            self._latency_samples.append(seconds)
+            if len(self._latency_samples) > 100:
+                self._latency_samples = self._latency_samples[-100:]
+
+    def update_drawdown(self, current_equity: float):
+        with self._lock:
+            if current_equity > self.peak_equity:
+                self.peak_equity = current_equity
+                self.portfolio_drawdown_percent = 0.0
+            elif self.peak_equity > 0:
+                self.portfolio_drawdown_percent = round(
+                    (self.peak_equity - current_equity) / self.peak_equity * 100, 2)
+
+    def heartbeat(self):
+        self.last_data_update = datetime.now()
+
+    def check_stall(self, timeout_minutes: int = 30) -> dict:
+        """检查是否停滞"""
+        now = datetime.now()
+        signal_age = (now - self.last_signal_time).total_seconds() / 60
+        data_age = (now - self.last_data_update).total_seconds() / 60
+
+        stalled = signal_age > timeout_minutes or data_age > timeout_minutes
+        return {
+            "stalled": stalled,
+            "signal_age_minutes": round(signal_age, 1),
+            "data_age_minutes": round(data_age, 1),
+            "since_last_signal": str(self.last_signal_time)[:19],
+            "since_last_data": str(self.last_data_update)[:19],
+        }
+
+    def render(self) -> str:
+        """Prometheus text format"""
+        uptime = (datetime.now() - self.start_time).total_seconds()
+        with self._lock:
+            lines = [
+                "# HELP strategy_signals_total Total number of trading signals.",
+                "# TYPE strategy_signals_total counter",
+                f"strategy_signals_total {self.strategy_signals_total}",
+                f"strategy_signals_total{{action=\"BUY\"}} {self.signals_by_action.get('BUY',0)}",
+                f"strategy_signals_total{{action=\"SELL\"}} {self.signals_by_action.get('SELL',0)}",
+                f"strategy_signals_total{{action=\"SHORT\"}} {self.signals_by_action.get('SHORT',0)}",
+                "",
+                "# HELP trade_execution_latency_seconds Trade execution latency.",
+                "# TYPE trade_execution_latency_seconds gauge",
+                f"trade_execution_latency_seconds {self.trade_execution_latency:.6f}",
+                "",
+                "# HELP portfolio_drawdown_percent Current portfolio drawdown.",
+                "# TYPE portfolio_drawdown_percent gauge",
+                f"portfolio_drawdown_percent {self.portfolio_drawdown_percent}",
+                "",
+                "# HELP quantaxis_uptime_seconds Application uptime.",
+                "# TYPE quantaxis_uptime_seconds gauge",
+                f"quantaxis_uptime_seconds {uptime:.0f}",
+                "",
+                "# HELP quantaxis_stall_status 1 if stalled, 0 otherwise.",
+                "# TYPE quantaxis_stall_status gauge",
+                f"quantaxis_stall_status {1 if self.check_stall()['stalled'] else 0}",
+            ]
+        return "\n".join(lines) + "\n"
+
+
+metrics = MetricsRegistry()
+
+
+def stall_monitor(timeout_minutes: int = 30):
+    """后台停滞监控线程"""
+    while True:
+        time.sleep(60)  # 每分钟检查一次
+        status = metrics.check_stall(timeout_minutes)
+        if status["stalled"]:
+            from src.audit.TradeAudit import audit
+            audit.send_alert(
+                "⚠️ 策略停滞告警",
+                f"超过{timeout_minutes}分钟无交易信号或数据更新\n"
+                f"最后信号: {status['since_last_signal']}\n"
+                f"最后数据: {status['since_last_data']}\n"
+                f"可能原因: 逻辑死锁 / 数据断流 / 网络异常"
+            )
+
+
+# 启动监控线程
+_stall_thread = threading.Thread(target=stall_monitor, args=(30,), daemon=True)
+_stall_thread.start()
+
 
 # ═══════════════════════════════════════════════════════════
 # 完整单页HTML
@@ -736,6 +856,39 @@ buildNav();initSearch();renderPanel('dashboard');
 @app.route('/')
 def index():
     return HTML
+
+@app.route('/metrics')
+def api_metrics():
+    """Prometheus 格式监控指标"""
+    return metrics.render(), 200, {"Content-Type": "text/plain; charset=utf-8"}
+
+@app.route('/api/metrics/update', methods=['POST'])
+def api_metrics_update():
+    """更新监控指标"""
+    d = request.json or {}
+    if "signals" in d:
+        for action, count in d["signals"].items():
+            metrics.inc_signals(action, count)
+    if "latency" in d:
+        metrics.observe_latency(float(d["latency"]))
+    if "equity" in d:
+        metrics.update_drawdown(float(d["equity"]))
+    if "heartbeat" in d:
+        metrics.heartbeat()
+    return jsonify({"ok": True})
+
+@app.route('/api/metrics/status')
+def api_metrics_status():
+    """监控状态摘要"""
+    stall = metrics.check_stall()
+    return jsonify({
+        "signals_total": metrics.strategy_signals_total,
+        "drawdown_pct": metrics.portfolio_drawdown_percent,
+        "latency": metrics.trade_execution_latency,
+        "stalled": stall["stalled"],
+        "since_last_signal": stall["since_last_signal"],
+        "uptime_seconds": (datetime.now() - metrics.start_time).total_seconds(),
+    })
 
 @app.route('/api/status')
 def api_status():
