@@ -228,6 +228,9 @@ class BacktestEngine:
                 "metrics": 绩效指标字典,
             }
         """
+        # 审计日志
+        from src.audit.TradeAudit import audit
+
         self.portfolio = Portfolio(self.initial_capital)
         signals_log = []
 
@@ -331,6 +334,19 @@ class BacktestEngine:
                         self.portfolio.positions[short_key]["qty"]
                     self.portfolio.cover_short(
                         signal.symbol, exec_price, qty, date, self.commission_rate)
+
+            # 审计记录
+            try:
+                qty = signal.quantity if signal.quantity > 0 else 0
+                audit.log_decision(
+                    action=signal.action, symbol=signal.symbol,
+                    price=signal.price, quantity=qty,
+                    strategy=strategy.__class__.__name__ if 'strategy' in dir() else "",
+                    reason=signal.reason,
+                    portfolio_value=self.portfolio.total_value,
+                )
+            except:
+                pass
 
             # 每日估值
             prices = {signal.symbol: row["close"]}
