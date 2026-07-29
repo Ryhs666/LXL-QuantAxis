@@ -45,8 +45,8 @@ def calc_all_metrics(daily_values: List[dict],
     # 最大回撤
     max_drawdown, max_dd_start, max_dd_end = _calc_max_drawdown(daily_values)
 
-    # 夏普比率
-    sharpe = _calc_sharpe(daily_returns, years)
+    # 夏普比率 & 索提诺比率
+    sharpe, sortino = _calc_sharpe_and_sortino(daily_returns, years)
 
     # 从交易记录计算胜率、盈亏比
     sells_with_pnl = [t for t in trade_log if t["action"] == "SELL" and "pnl" in t]
@@ -60,8 +60,21 @@ def calc_all_metrics(daily_values: List[dict],
     profit_factor = (sum(t["pnl"] for t in wins) / abs(sum(t["pnl"] for t in losses))
                      if losses and sum(t["pnl"] for t in losses) != 0 else float("inf"))
 
-    # 卡尔玛比率（年化收益 / 最大回撤）
-    calmar = annual_return / abs(max_drawdown) if max_drawdown != 0 else float("inf")
+    # 卡尔玛比率
+    calmar = annual_return / abs(max_drawdown) if max_drawdown != 0 and annual_return != 0 else 0.0
+    if calmar == float("inf") or calmar == float("-inf"):
+        calmar = 0.0
+
+    # 最大连续亏损次数
+    max_consecutive_losses = 0
+    current_streak = 0
+    for t in trade_log:
+        if t.get("action") == "SELL" and "pnl" in t:
+            if t["pnl"] <= 0:
+                current_streak += 1
+                max_consecutive_losses = max(max_consecutive_losses, current_streak)
+            else:
+                current_streak = 0
 
     return {
         "初始资金": round(initial_capital, 2),
@@ -69,6 +82,7 @@ def calc_all_metrics(daily_values: List[dict],
         "总收益率": f"{total_return:+.2f}%",
         "年化收益率": f"{annual_return:+.2f}%",
         "夏普比率": round(sharpe, 2),
+        "索提诺比率": round(sortino, 2),
         "最大回撤": f"{max_drawdown:+.2f}%",
         "最大回撤区间": f"{max_dd_start} ~ {max_dd_end}",
         "卡尔玛比率": round(calmar, 2),
@@ -76,6 +90,7 @@ def calc_all_metrics(daily_values: List[dict],
         "卖出次数": len(sells_with_pnl),
         "盈利次数": len(wins),
         "亏损次数": len(losses),
+        "最大连续亏损": max_consecutive_losses,
         "胜率": f"{win_rate:.1f}%",
         "平均盈利": f"¥{avg_win:+,.2f}",
         "平均亏损": f"¥{avg_loss:+,.2f}",
@@ -109,20 +124,28 @@ def _calc_max_drawdown(daily_values: List[dict]) -> tuple:
     return -max_dd, dd_start, dd_end
 
 
-def _calc_sharpe(daily_returns: List[float], years: float) -> float:
-    """计算夏普比率（假设无风险利率为 2%）"""
+def _calc_sharpe_and_sortino(daily_returns: List[float], years: float) -> tuple:
+    """计算夏普比率和索提诺比率"""
     if not daily_returns:
-        return 0.0
+        return 0.0, 0.0
 
     mean_ret = sum(daily_returns) / len(daily_returns)
-    # 年化
     ann_mean = mean_ret * 252
     ann_std = _std(daily_returns) * math.sqrt(252)
     risk_free = 0.02
 
-    if ann_std == 0:
-        return 0.0
-    return (ann_mean - risk_free) / ann_std
+    # 夏普
+    sharpe = (ann_mean - risk_free) / ann_std if ann_std > 0 else 0.0
+
+    # 索提诺 (只用下行波动)
+    downside = [r for r in daily_returns if r < 0]
+    if downside and len(downside) >= 2:
+        d_std = _std(downside) * math.sqrt(252)
+        sortino = (ann_mean - risk_free) / d_std if d_std > 0 else 0.0
+    else:
+        sortino = 0.0
+
+    return sharpe, sortino
 
 
 def _std(values: List[float]) -> float:
