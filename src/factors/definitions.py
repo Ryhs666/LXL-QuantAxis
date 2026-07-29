@@ -45,14 +45,19 @@ class Factor:
 # ============================================================
 
 class FactorCalculator:
-    """因子计算引擎 — 输入 OHLCV，输出因子值 DataFrame"""
+    """因子计算引擎 — 输入 OHLCV，输出因子值 DataFrame (v6.7: EWMA时间衰减)"""
 
-    def __init__(self, data: pd.DataFrame):
+    def __init__(self, data: pd.DataFrame, halflife: int = 20, use_ewma: bool = True):
         """
-        data: OHLCV DataFrame (date, open, high, low, close, volume)
+        data:      OHLCV DataFrame (date, open, high, low, close, volume)
+        halflife:  EWMA 半衰期(交易日), 默认20天
+        use_ewma:  是否使用时间衰减加权
         """
         self.data = data.copy()
-        self._cache = {}  # 缓存计算结果
+        self.halflife = halflife
+        self.use_ewma = use_ewma
+        self._cache = {}
+        self._decay_status = {}  # 因子衰退状态
 
     # ---- 基础计算 ----
 
@@ -71,9 +76,25 @@ class FactorCalculator:
     def lowest(self, col: str = "low", period: int = 20) -> pd.Series:
         return self.data[col].rolling(period).min()
 
+    # ---- EWMA 时间衰减 (v6.7) ----
+
+    def ewma(self, col: str = "close", halflife: int = None) -> pd.Series:
+        """指数加权移动平均"""
+        hl = halflife or self.halflife
+        span = hl * 2  # span ≈ 2 * halflife
+        return self.data[col].ewm(span=span, adjust=False).mean()
+
+    def ewma_std(self, col: str = "close", halflife: int = None) -> pd.Series:
+        """指数加权标准差"""
+        hl = halflife or self.halflife
+        span = hl * 2
+        ewm_mean = self.data[col].ewm(span=span, adjust=False).mean()
+        ewm_var = ((self.data[col] - ewm_mean) ** 2).ewm(span=span, adjust=False).mean()
+        return np.sqrt(ewm_var)
+
     def _normalize(self, series: pd.Series, method: str = "zscore",
                    period: int = 252) -> pd.Series:
-        """标准化到 ~0-1 范围"""
+        """标准化到 ~0-1 范围 (v6.7: 支持EWMA)"""
         if method == "zscore":
             mean = series.rolling(period).mean()
             std = series.rolling(period).std()
@@ -324,6 +345,98 @@ class FactorCalculator:
         factors_df.attrs["factor_categories"] = {c: cat for _, c, cat in factor_methods}
 
         return factors_df
+
+    # ---- IC 衰减曲线 (v6.7) ----
+
+    def compute_decay_curve(self, price_data: pd.DataFrame,
+                            factor_name: str,
+                            lookback: int = 120) -> dict:
+        """
+        计算因子的半衰期IC衰减曲线
+
+        返回: {
+          current_ic, ic_series, decaying(bool), days_since_positive, recommendation
+        }
+        """
+        factors = self.compute_all()
+        if factor_name not in factors.columns:
+            return {"current_ic": 0, "decaying": False, "recommendation": "因子不存在"}
+
+        close = price_data["close"]
+        ret = close.pct_change().shift(-1)  # 未来1日收益
+        factor_vals = factors[factor_name]
+
+        common_idx = factor_vals.dropna().index.intersection(ret.dropna().index)
+        ic_list = []
+        dates = []
+
+        for i in range(lookback, 0, -1):
+            idx = common_idx[-i] if i <= len(common_idx) else None
+            if idx is None or idx not in common_idx:
+                continue
+            fv = factor_vals.loc[:idx].iloc[-1]
+            rv = ret.loc[:idx].iloc[-1]
+            # 横截面IC需要多只股票, 这里用滚动时序相关
+            f_slice = factor_vals.loc[:idx].iloc[-60:]
+            r_slice = ret.loc[:idx].iloc[-60:]
+            valid = f_slice.notna() & r_slice.notna()
+            if valid.sum() < 20:
+                continue
+            ic = f_slice[valid].corr(r_slice[valid])
+            ic_list.append(ic)
+            dates.append(str(price_data["date"].iloc[min(idx, len(price_data)-1)])[:10])
+
+        if not ic_list:
+            return {"current_ic": 0, "decaying": False, "recommendation": "数据不足"}
+
+        current_ic = ic_list[-1]
+        # 检测衰退: IC连续5天低于0
+        recent = ic_list[-20:] if len(ic_list) >= 20 else ic_list
+        below_zero_streak = 0
+        for ic in reversed(recent):
+            if ic < 0:
+                below_zero_streak += 1
+            else:
+                break
+
+        # 找半衰点: IC首次跌破0.01 或 首次变负
+        decay_start = None
+        for i, ic in enumerate(recent):
+            if ic < 0.01:
+                decay_start = dates[-len(recent) + i] if i < len(dates) else "未知"
+                break
+
+        decaying = below_zero_streak >= 5
+        recommendation = "正常"
+        if decaying:
+            recommendation = "衰退! 建议权重降为0"
+        elif below_zero_streak >= 3:
+            recommendation = "预警: 连续3日IC<0, 密切关注"
+        elif current_ic < 0.01:
+            recommendation = "弱效: IC接近0, 建议降权"
+
+        self._decay_status[factor_name] = {
+            "current_ic": round(current_ic, 4),
+            "decaying": decaying,
+            "below_zero_streak": below_zero_streak,
+            "recommendation": recommendation,
+            "decay_start": decay_start,
+            "ic_series": list(zip(dates[-60:], ic_list[-60:])),
+        }
+
+        return self._decay_status[factor_name]
+
+    def get_decay_status(self) -> dict:
+        """获取所有因子的衰退状态"""
+        return self._decay_status
+
+    def get_active_factors(self) -> list:
+        """返回未衰退的因子列表"""
+        active = []
+        for name, status in self._decay_status.items():
+            if not status.get("decaying", False):
+                active.append(name)
+        return active
 
 
 # ============================================================
