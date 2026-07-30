@@ -1957,6 +1957,34 @@ def api_alert():
 
 
 
+
+@app.route('/api/signals')
+def api_signals():
+    """返回股票买卖信号 — 用于K线图markPoint标记"""
+    import sqlite3
+    symbol = request.args.get('symbol', '000001')
+    try:
+        conn = sqlite3.connect("D:/trading_data/users.db")
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT symbol, action, price, reason, created_at, score FROM user_trade_logs WHERE symbol=? ORDER BY created_at DESC LIMIT 30",
+            (symbol,)).fetchall()
+        conn.close()
+        signals = []
+        for r in rows:
+            ts = r["created_at"] or ""
+            signals.append({
+                "time": ts[:10] if len(ts) >= 10 else ts,
+                "price": round(r["price"] or 0, 2),
+                "action": r["action"] or "BUY",
+                "strategy": (r["reason"] or "") if r["reason"] else "策略信号",
+                "score": r["score"] or 0,
+            })
+        return jsonify({"symbol": symbol, "signals": signals, "count": len(signals)})
+    except Exception as e:
+        return jsonify({"symbol": symbol, "signals": [], "error": str(e)})
+
+
 @app.route('/api/kline')
 def api_kline_simple():
     """简单K线接口 — 从CSV读取，保证数据可控"""

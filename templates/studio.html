@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LXL·QuantAxis — 工作台</title>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="/static/echarts.min.js"></script>
+<script>if(typeof echarts==='undefined'){document.write('<script src=\"https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js\"><\/script>');}</script>
 <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
 <style>
 :root{
@@ -339,40 +340,43 @@ async function fetchKlinePoll(){
 try{
 var url='/api/kline?symbol='+_klSymbol;
 var r=await (await fetch(url)).json();
-console.log('[K线] 收到数据:',r.symbol,r.count+'根 ¥'+r.latest_price);
-if(!r.data||!r.data.length){console.warn('[K线] 无数据');return;}
+console.log('[K线] '+_klSymbol+' '+r.count+'根 ¥'+r.latest_price);
+if(!r.data||!r.data.length)return;
 _klBars=r.data;
 renderKline(r.data, r.latest_price, 0);
 }catch(e){console.error('[K线] 请求失败:',e);}
 }
 function renderKline(bars,latestPrice,changePct){
-if(!klineChart2){console.warn('[K线] 图表实例未初始化');return;}
-if(!bars||!bars.length){console.warn('[K线] 无数据');return;}
-var dates=bars.map(function(b){return b.time;});
-// ECharts candlestick 数据格式: [open, close, low, high]
+if(!klineChart2){return;}
+if(!bars||!bars.length){return;}
+var dates=bars.map(function(b){return b.time.slice(-5);});
 var ohlc=bars.map(function(b){return[+b.open,+b.close,+b.low,+b.high];});
-console.log('[K线] 渲染'+ohlc.length+'根 样例:',JSON.stringify(ohlc[0]),' 最后:',JSON.stringify(ohlc[ohlc.length-1]));
+var vols=bars.map(function(b){return +b.volume||0;});
 
-// 更新顶部信息
 if(latestPrice)document.getElementById('klinePrice').textContent='¥'+latestPrice.toFixed(2);
 var last=ohlc[ohlc.length-1];
 document.getElementById('klHigh').textContent=last[3].toFixed(2);
 document.getElementById('klLow').textContent=last[2].toFixed(2);
 
-// 极简配置 — 保证渲染
 klineChart2.setOption({
 backgroundColor:'#0b0e14',
-xAxis:{type:'category',data:dates,axisLabel:{color:'#8899aa',fontSize:10},axisLine:{lineStyle:{color:'#2a3344'}}},
-yAxis:{type:'value',scale:true,axisLabel:{color:'#8899aa',fontSize:10},splitLine:{lineStyle:{color:'#1a2332',type:'dashed'}}},
-series:[{
-type:'candlestick',
-data:ohlc,
-itemStyle:{color:'#ef232a',color0:'#14b143',borderColor:'#ef232a',borderColor0:'#14b143'}
-}],
-tooltip:{trigger:'axis',axisPointer:{type:'cross'},formatter:function(ps){var d=ps[0];if(!d)return'';var i=d.dataIndex;var b=bars[i];return'<b>'+b.time+'</b><br/>开:'+b.open+' 收:'+b.close+'<br/>高:'+b.high+' 低:'+b.low;}},
-dataZoom:[{type:'inside'},{type:'slider',bottom:4,height:16,textStyle:{color:'#8899aa',fontSize:8}}]
-},{notMerge:false});
-console.log('[K线] setOption完成');
+grid:[{left:'8%',right:'3%',top:'5%',height:'60%'},{left:'8%',right:'3%',top:'73%',height:'18%'}],
+xAxis:[
+{type:'category',data:dates,gridIndex:0,axisLabel:{color:'#8899aa',fontSize:9},axisLine:{lineStyle:{color:'#2a3344'}}},
+{type:'category',data:dates,gridIndex:1,axisLabel:{show:false},axisLine:{show:false}}
+],
+yAxis:[
+{type:'value',scale:true,gridIndex:0,axisLabel:{color:'#8899aa',fontSize:9},splitLine:{lineStyle:{color:'#1a2332',type:'dashed'}}},
+{type:'value',gridIndex:1,axisLabel:{color:'#8899aa',fontSize:8},splitLine:{show:false}}
+],
+series:[
+{type:'candlestick',data:ohlc,xAxisIndex:0,yAxisIndex:0,itemStyle:{color:'#ef232a',color0:'#14b143',borderColor:'#ef232a',borderColor0:'#14b143'}},
+{type:'bar',data:vols,xAxisIndex:1,yAxisIndex:1,itemStyle:{color:function(p){return ohlc[p.dataIndex][1]>=ohlc[p.dataIndex][0]?'#ef232a':'#14b143';}},barWidth:'90%'}
+],
+tooltip:{trigger:'axis',axisPointer:{type:'cross'}},
+dataZoom:[{type:'inside'},{type:'slider',bottom:2,height:14}]
+},true);
+console.log('[K线] '+ohlc.length+'根 OK');
 }
 function switchKlineSymbol(){var val=document.getElementById('klineSymbol').value.trim();if(val&&val.length===6){_klSymbol=val;fetchKlinePoll();}}
 
