@@ -1,16 +1,213 @@
 """
 LXL·QuantAxis v5.0 — 完整Web量化平台
-TradingView风格 · 全部功能 · 一键启动
+TradingView风格 · 全部功能 · 一键启动 · 实时行情推送
 """
-import sys, os, json, io, threading, time
+import sys, os, json, io, threading, time, random
 sys.path.insert(0, os.path.dirname(__file__))
 os.chdir(os.path.dirname(__file__))
 
-from flask import Flask, request, jsonify
+# eventlet monkey_patch — 必须在所有 import 之前
+try:
+    import eventlet
+    eventlet.monkey_patch()
+except ImportError:
+    pass
+
+from flask import Flask, request, jsonify, render_template, redirect
 from datetime import datetime, timedelta
-import threading, time
+from src.auth import token_required, admin_required
 
 app = Flask(__name__)
+
+# ═══════════════════════════════════════════════════════════
+# Flask-SocketIO 实时行情推送 (v5.5)
+# ═══════════════════════════════════════════════════════════
+try:
+    from flask_socketio import SocketIO
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+    _SOCKETIO_AVAILABLE = True
+except ImportError:
+    socketio = None
+    _SOCKETIO_AVAILABLE = False
+    print("[WARN] flask-socketio 未安装，实时推送不可用")
+
+# 实时行情缓存（由 RealtimeCollector 填充）
+REALTIME_CACHE = {}
+
+# 初始化缓存占位（避免前端undefined）
+for _sym in [
+    "000001", "000002", "600000", "600036", "601318",
+    "000858", "002415", "300750", "600519", "000333",
+]:
+    REALTIME_CACHE[_sym] = {
+        "symbol": _sym, "name": "", "price": 0.0, "open": 0.0,
+        "high": 0.0, "low": 0.0, "volume": 0, "change": 0.0,
+        "change_pct": 0.0, "timestamp": "",
+    }
+
+
+def _on_realtime_data(data: dict):
+    """真实行情回调：更新缓存 + SocketIO广播"""
+    for sym, tick in data.items():
+        # 补充名称（首次）
+        if not REALTIME_CACHE.get(sym, {}).get("name") and tick.get("name"):
+            pass  # tick already has name
+        REALTIME_CACHE[sym] = tick
+
+    # SocketIO 广播
+    if socketio:
+        for sym, tick in data.items():
+            try:
+                socketio.emit('price_update', {
+                    "symbol": sym,
+                    "name": tick.get("name", ""),
+                    "price": tick["price"],
+                    "volume": tick.get("volume", 0),
+                    "high": tick.get("high", 0),
+                    "low": tick.get("low", 0),
+                    "change": tick.get("change", 0),
+                    "change_pct": tick.get("change_pct", 0),
+                    "timestamp": tick.get("timestamp", ""),
+                })
+            except Exception:
+                pass
+
+
+# 启动策略信号引擎
+try:
+    from src.realtime.engine import StrategyEngine
+    _engine = StrategyEngine(socketio=socketio)
+    print("[Engine] 策略信号引擎已初始化")
+except Exception as e:
+    _engine = None
+    print(f"[Engine] 初始化失败: {e}")
+
+
+# 启动K线聚合器
+def _on_kline_close(symbol: str, period: str, bar: dict):
+    """K线闭合回调 → 计算策略信号 → 广播"""
+    if not socketio:
+        return
+    # 简单信号规则
+    signals = []
+    if period in ("5min", "15min"):
+        o, h, l, c = bar["open"], bar["high"], bar["low"], bar["close"]
+        # MA交叉信号（用历史K线）
+        bars = _kline_agg.get_bars(symbol, period)
+        if len(bars) >= 5:
+            closes = [b["close"] for b in bars]
+            ma5 = sum(closes[-5:]) / 5
+            ma10 = sum(closes[-10:]) / 10 if len(closes) >= 10 else ma5
+            if len(closes) >= 10:
+                ma5_prev = sum(closes[-6:-1]) / 5
+                ma10_prev = sum(closes[-11:-1]) / 10
+                if ma5_prev <= ma10_prev and ma5 > ma10:
+                    signals.append(("MA金叉", "BUY", f"MA5({ma5:.2f})上穿MA10({ma10:.2f})"))
+                elif ma5_prev >= ma10_prev and ma5 < ma10:
+                    signals.append(("MA死叉", "SELL", f"MA5({ma5:.2f})下穿MA10({ma10:.2f})"))
+        # RSI
+        if len(closes) >= 14:
+            deltas = [closes[i]-closes[i-1] for i in range(1, len(closes))]
+            gains = sum(d for d in deltas[-14:] if d > 0) / 14
+            losses = sum(abs(d) for d in deltas[-14:] if d < 0) / 14
+            rsi = 100 - 100/(1+gains/losses) if losses > 0 else 100
+            if rsi < 30:
+                signals.append(("RSI超卖", "BUY", f"RSI={rsi:.0f} 超卖反弹"))
+            elif rsi > 70:
+                signals.append(("RSI超买", "SELL", f"RSI={rsi:.0f} 超买回落"))
+        # 布林带
+        if len(closes) >= 20:
+            ma20 = sum(closes[-20:])/20
+            std = (sum((x-ma20)**2 for x in closes[-20:])/20)**0.5
+            if c <= ma20 - 2*std:
+                signals.append(("布林下轨", "BUY", f"触及下轨{ma20-2*std:.2f}"))
+            elif c >= ma20 + 2*std:
+                signals.append(("布林上轨", "SELL", f"触及上轨{ma20+2*std:.2f}"))
+
+    for sig_name, action, reason in signals:
+        socketio.emit('strategy_signal', {
+            "symbol": symbol,
+            "timestamp": bar.get("time", ""),
+            "strategy_name": sig_name,
+            "signal": action,
+            "price": bar["close"],
+            "reason": reason,
+            "period": period,
+        })
+
+try:
+    from src.realtime.kline import KLineAggregator
+    _kline_agg = KLineAggregator(socketio=socketio, signal_callback=_on_kline_close)
+    print("[KLine] 聚合器已初始化")
+except Exception as e:
+    _kline_agg = None
+    print(f"[KLine] 初始化失败: {e}")
+
+
+def _on_tick_with_signals(data: dict):
+    """行情回调 + 预警检查"""
+    for sym, tick in data.items():
+        price = tick["price"]
+        triggered = check_alerts(sym, price)
+        for a in triggered:
+            if socketio:
+                socketio.emit('alert_triggered', {
+                    "symbol": sym, "price": price,
+                    "direction": a["direction"],
+                    "target": a["price"],
+                    "user_id": a["user_id"],
+                })
+    """行情回调：更新缓存 + 广播 + K线聚合 + 策略引擎评估"""
+    _on_realtime_data(data)
+    # K线聚合
+    if _kline_agg:
+        for sym, tick in data.items():
+            try:
+                _kline_agg.on_tick(sym, tick["price"], tick.get("volume", 0))
+            except Exception:
+                pass
+        # 首次聚合后打印
+        if not hasattr(_on_tick_with_signals, '_dbg'):
+            _on_tick_with_signals._dbg = True
+            print(f"[KLine] 已调用聚合器 {len(data)} 只股票")
+    # 策略引擎
+    if _engine:
+        try:
+            _engine.on_tick(data)
+        except Exception:
+            pass
+
+
+# 启动真实行情采集器
+try:
+    from src.realtime.collector import RealtimeCollector
+    _collector = RealtimeCollector(callback=_on_tick_with_signals)
+    _collector.start()
+    print(f"[Realtime] 采集器已启动: {len(_collector.symbols)} 只股票")
+except Exception as e:
+    print(f"[Realtime] 采集器启动失败，使用模拟器降级: {e}")
+    # 降级：简单随机模拟
+    def _sim_fallback():
+        import random as _r
+        while True:
+            for sym in REALTIME_CACHE:
+                d = REALTIME_CACHE[sym]
+                if d["price"] <= 0:
+                    d["price"] = round(_r.uniform(10, 100), 2)
+                    d["open"] = d["price"]
+                wiggle = 1 + _r.uniform(-0.002, 0.002)
+                d["price"] = round(d["price"] * wiggle, 2)
+                d["high"] = max(d["high"], d["price"])
+                d["low"] = min(d["low"] or d["price"], d["price"])
+                d["volume"] += _r.randint(1000, 50000)
+                d["change"] = round(d["price"] - d["open"], 2)
+                d["change_pct"] = round((d["price"]/d["open"]-1)*100, 2) if d["open"] > 0 else 0
+                d["timestamp"] = datetime.now().strftime("%H:%M:%S")
+                if socketio:
+                    socketio.emit('price_update', {k: v for k, v in d.items()})
+            time.sleep(1)
+    threading.Thread(target=_sim_fallback, daemon=True).start()
+
 
 # ═══════════════════════════════════════════════════════════
 # Prometheus 监控 (v6.9)
@@ -132,6 +329,52 @@ _stall_thread.start()
 
 
 # ═══════════════════════════════════════════════════════════
+# 自动数据刷新 — 每天15:30更新全部缓存
+# ═══════════════════════════════════════════════════════════
+
+def _daily_data_refresh():
+    """后台线程：每天15:30自动刷新全部缓存（纯HTTP，无V8）"""
+    import time as _t
+    import requests as _req
+    import pandas as _pd
+    cache_dir = "D:/trading_data/cache"
+
+    while True:
+        now = datetime.now()
+        target = now.replace(hour=15, minute=30, second=0, microsecond=0)
+        if now > target:
+            target += timedelta(days=1)
+        _t.sleep((target - now).total_seconds())
+
+        files = [f for f in os.listdir(cache_dir) if f.endswith("_daily.csv")]
+        if not files:
+            continue
+        updated = 0
+        for fname in files:
+            try:
+                code = fname.replace("A股_", "").replace("_daily.csv", "")
+                secid = f"1.{code}" if code.startswith("6") else f"0.{code}"
+                r = _req.get("https://push2his.eastmoney.com/api/qt/stock/kline/get", params={
+                    "secid": secid, "fields1": "f1,f2,f3,f4,f5,f6",
+                    "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
+                    "klt": "101", "fqt": "1", "beg": "20240101",
+                    "end": datetime.now().strftime("%Y%m%d"), "lmt": "500",
+                }, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                klines = r.json().get("data", {}).get("klines", [])
+                if klines:
+                    rows = [dict(zip(["date","open","close","high","low","volume"],
+                        [float(x) if i>0 else x for i,x in enumerate(l.split(",")[:6])]))
+                        for l in klines if len(l.split(","))>=6]
+                    _pd.DataFrame(rows).to_csv(os.path.join(cache_dir, fname), index=False)
+                    updated += 1
+            except Exception: pass
+        print(f"[数据刷新] {datetime.now():%H:%M} 完成: {updated}/{len(files)}")
+
+_refresh_thread = threading.Thread(target=_daily_data_refresh, daemon=True)
+_refresh_thread.start()
+
+
+# ═══════════════════════════════════════════════════════════
 # 完整单页HTML
 # ═══════════════════════════════════════════════════════════
 
@@ -140,7 +383,7 @@ HTML = r'''<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LXL·QuantAxis v5.0</title>
-<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 :root{
 --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;--ac:#58a6ff;--gr:#3fb950;
@@ -256,9 +499,53 @@ font-size:12px;color:#fff;z-index:9999;animation:slideUp .3s ease}
 .toast.ok{background:var(--gr)}.toast.err{background:var(--rd)}
 @keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
 @media(max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}.g2{grid-template-columns:1fr}}
+/*== Login ==*/
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);
+display:flex;align-items:center;justify-content:center;z-index:9999}
+.login-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+padding:40px 36px;width:380px;max-width:90vw}
+.login-card h2{font-size:20px;margin-bottom:4px;text-align:center}
+.login-card .sub{font-size:11px;color:var(--t3);text-align:center;margin-bottom:24px}
+.login-tabs{display:flex;margin-bottom:20px;border-bottom:2px solid var(--border)}
+.login-tab{flex:1;text-align:center;padding:8px;font-size:13px;color:var(--t2);
+cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
+.login-tab.active{color:var(--ac);border-bottom-color:var(--ac)}
+.login-field{margin-bottom:14px}
+.login-field label{display:block;font-size:10px;color:var(--t3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.login-field input{width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--border);
+border-radius:6px;color:var(--t1);font-size:13px;outline:none;box-sizing:border-box}
+.login-field input:focus{border-color:var(--ac)}
+.login-btn{width:100%;padding:10px;border:none;border-radius:6px;font-size:13px;font-weight:600;
+cursor:pointer;margin-top:4px;transition:all .15s}
+.login-btn.primary{background:var(--ac);color:#fff}
+.login-btn.primary:hover{filter:brightness(1.2)}
+.login-msg{font-size:11px;text-align:center;margin-top:12px;min-height:16px}
+.login-msg.err{color:var(--rd)}.login-msg.ok{color:var(--gr)}
+/*== Topbar user ==*/
+.user-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)}
+.user-badge .uname{color:var(--ac);cursor:pointer}
+.user-badge .logout{color:var(--t3);cursor:pointer;margin-left:4px}
+.user-badge .logout:hover{color:var(--rd)}
 </style>
 </head>
 <body>
+<!-- Login Overlay -->
+<div class="login-overlay" id="loginOverlay">
+<div class="login-card">
+<h2>LXL·QuantAxis</h2><div class="sub">量化交易平台 · 登录</div>
+<div class="login-tabs">
+<div class="login-tab active" id="tabLogin" onclick="switchAuthTab('login')">登录</div>
+<div class="login-tab" id="tabRegister" onclick="switchAuthTab('register')">注册</div>
+</div>
+<div id="loginFields">
+<div class="login-field"><label>用户名</label><input id="loginUser" placeholder="输入用户名" onkeypress="if(event.key==='Enter')doLogin()"></div>
+<div class="login-field"><label>密码</label><input id="loginPass" type="password" placeholder="输入密码" onkeypress="if(event.key==='Enter')doLogin()"></div>
+<div class="login-field" id="regEmailField" style="display:none"><label>邮箱 (可选)</label><input id="regEmail" placeholder="your@email.com"></div>
+<button class="login-btn primary" id="loginBtn" onclick="doLogin()">登 录</button>
+</div>
+<div class="login-msg" id="loginMsg"></div>
+</div>
+</div>
 <div id="app">
 <div class="sidebar">
 <div class="logo"><h1>LXL<span>·</span>QuantAxis</h1><p>量化交易平台 v5.0</p></div>
@@ -272,7 +559,14 @@ font-size:12px;color:#fff;z-index:9999;animation:slideUp .3s ease}
 <input type="text" id="globalSearch" placeholder="搜索: 600498 烽火通信 / 茅台 / 宁德..." autocomplete="off">
 <div class="suggestions" id="suggestions"></div>
 </div>
+<div style="display:flex;gap:6px;margin-right:12px">
+<a href="/studio" style="font-size:10px;color:var(--ac);text-decoration:none;border:1px solid var(--border);padding:3px 8px;border-radius:4px;white-space:nowrap">📊 策略</a>
+<a href="/game" style="font-size:10px;color:var(--gr);text-decoration:none;border:1px solid var(--gr);padding:3px 8px;border-radius:4px;white-space:nowrap">🎮 交易</a>
+<a href="/classic" style="font-size:10px;color:var(--t1);text-decoration:none;border:1px solid var(--ac);padding:3px 8px;border-radius:4px;white-space:nowrap">📋 经典</a>
+<a href="/admin" style="font-size:10px;color:var(--yw);text-decoration:none;border:1px solid var(--yw);padding:3px 8px;border-radius:4px;white-space:nowrap;display:none" id="adminClassicLink">⚙️ 管理</a>
+</div>
 <div class="status-bar">
+<span class="user-badge" id="userBadge" style="display:none"></span>
 <span id="statusText">就绪</span>
 <span id="statusTime"></span>
 </div>
@@ -285,6 +579,10 @@ font-size:12px;color:#fff;z-index:9999;animation:slideUp .3s ease}
 <script>
 // ═══════════════ State ═══════════════
 const S={panel:'dashboard',sym:'600498',sname:'',data:null};
+// Auth state
+const AUTH={token:localStorage.getItem('qa_token')||'',user:null,loggedIn:false};
+// 检测 chart 库是否可用（CDN 可能加载慢）
+const HAS_CHARTS=()=>typeof LightweightCharts!=='undefined';
 
 // ═══════════════ Navigation ═══════════════
 const NAV=[
@@ -309,8 +607,14 @@ const NAV=[
 {id:'aireview',ic:'📝',lb:'AI复盘'},
 {id:'aimarket',ic:'📰',lb:'AI市场简报'},
 ]},
+{sec:'管理',items:[{id:'admin',ic:'⚙️',lb:'系统管理'}]},
 ];
 function buildNav(){
+// 非管理员隐藏管理菜单
+if(AUTH.user&&AUTH.user.role!=='admin'){
+NAV[NAV.length-1]={sec:'',items:[]};
+}
+
 const n=document.getElementById('nav');
 NAV.forEach(g=>{
 const s=document.createElement('div');s.className='nav-grp';s.textContent=g.sec;n.appendChild(s);
@@ -334,8 +638,12 @@ await renderPanel(id);
 
 // ═══════════════ API ═══════════════
 async function api(url,data=null){
-const o=data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{};
-const r=await fetch(url,o);return r.json();
+const headers={'Content-Type':'application/json'};
+if(AUTH.token)headers['Authorization']='Bearer '+AUTH.token;
+const o=data?{method:'POST',headers,body:JSON.stringify(data)}:{method:'GET',headers};
+const r=await fetch(url,o);
+if(r.status===401){doLogout();throw new Error('未登录');}
+return r.json();
 }
 function toast(msg,ok=true){
 const t=document.createElement('div');t.className='toast '+(ok?'ok':'err');t.textContent=msg;
@@ -343,6 +651,84 @@ document.getElementById('toasts').appendChild(t);setTimeout(()=>t.remove(),2500)
 }
 function updateStatus(txt){document.getElementById('statusText').textContent=txt;}
 setInterval(()=>{document.getElementById('statusTime').textContent=new Date().toLocaleTimeString();},1000);
+
+// ═══════════════ Auth ═══════════════
+let authMode='login';
+function switchAuthTab(mode){
+authMode=mode;
+document.getElementById('tabLogin').classList.toggle('active',mode==='login');
+document.getElementById('tabRegister').classList.toggle('active',mode==='register');
+document.getElementById('regEmailField').style.display=mode==='register'?'block':'none';
+document.getElementById('loginBtn').textContent=mode==='login'?'登 录':'注 册';
+document.getElementById('loginMsg').textContent='';
+document.getElementById('loginMsg').className='login-msg';
+}
+async function doLogin(){
+const u=document.getElementById('loginUser').value.trim();
+const p=document.getElementById('loginPass').value;
+const msg=document.getElementById('loginMsg');
+if(!u||!p){msg.textContent='请输入用户名和密码';msg.className='login-msg err';return}
+msg.textContent='登录中...';msg.className='login-msg';
+try{
+const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})}).then(r=>r.json());
+if(r.error){msg.textContent=r.error;msg.className='login-msg err';return}
+AUTH.token=r.access_token;AUTH.user=r.user;AUTH.loggedIn=true;
+localStorage.setItem('qa_token',r.access_token);
+document.getElementById('loginOverlay').style.display='none';
+updateUserBadge();renderPanel('dashboard');refreshKPIs();
+}catch(e){msg.textContent='连接失败: '+e;msg.className='login-msg err';}
+}
+async function doRegister(){
+if(authMode!=='register'){switchAuthTab('register');return}
+const u=document.getElementById('loginUser').value.trim();
+const p=document.getElementById('loginPass').value;
+const e=document.getElementById('regEmail').value.trim();
+const msg=document.getElementById('loginMsg');
+if(!u||!p){msg.textContent='请输入用户名和密码';msg.className='login-msg err';return}
+if(p.length<8){msg.textContent='密码至少8位';msg.className='login-msg err';return}
+msg.textContent='注册中...';msg.className='login-msg';
+try{
+const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,email:e})}).then(r=>r.json());
+if(r.error){msg.textContent=r.error;msg.className='login-msg err';return}
+msg.textContent='注册成功！请切换到登录标签';msg.className='login-msg ok';
+setTimeout(()=>switchAuthTab('login'),800);
+}catch(e){msg.textContent='连接失败: '+e;msg.className='login-msg err';}
+}
+function doLogout(){
+AUTH.token='';AUTH.user=null;AUTH.loggedIn=false;
+localStorage.removeItem('qa_token');
+localStorage.removeItem('qa_user');
+window.location.href='/login';
+switchAuthTab('login');
+updateUserBadge();
+}
+function updateUserBadge(){
+const badge=document.getElementById('userBadge');
+const adminLink=document.getElementById('adminClassicLink');
+if(!badge)return;
+if(AUTH.loggedIn&&AUTH.user){
+badge.innerHTML='<span class="dot live"></span>'+AUTH.user.username+'<span class="logout" onclick="doLogout()">退出</span>';
+badge.style.display='flex';
+if(adminLink&&AUTH.user.role==='admin')adminLink.style.display='inline';
+}else{
+badge.style.display='none';
+}
+}
+async function checkAuth(){
+// 无Token直接跳登录页
+if(!AUTH.token){window.location.href='/login';return}
+try{
+const r=await fetch('/api/me',{headers:{'Authorization':'Bearer '+AUTH.token}}).then(r=>r.json());
+if(r.ok){AUTH.loggedIn=true;AUTH.user=r.user;document.getElementById('loginOverlay').style.display='none';updateUserBadge();return}
+}catch(e){}
+// Token失效→跳登录页
+localStorage.removeItem('qa_token');
+window.location.href='/login';
+}
+// Allow Enter key for register mode
+document.getElementById('loginBtn').addEventListener('click',()=>{
+if(authMode==='register')doRegister();else doLogin();
+});
 
 // ═══════════════ Panel Rendering ═══════════════
 async function renderPanel(id){
@@ -363,7 +749,55 @@ case 'database':c.innerHTML=buildDatabase();loadDatabase();break;
 case 'aichat':c.innerHTML=buildAIChat();break;
 case 'aireview':c.innerHTML=buildAIReview();break;
 case 'aimarket':c.innerHTML=buildAIMarket();break;
+case 'admin':c.innerHTML=buildAdmin();loadAdminUsers();break;
+	}
+	}
+
+// ============================================================
+// Admin Panel
+// ============================================================
+function buildAdmin(){
+return `<div class="card"><h3>⚙️ 系统管理 - 用户列表</h3><div class="sub">超级管理员面板 · 查看所有用户数据</div>
+<div id="adminUsers">加载中...</div>
+<div id="adminDetail" style="margin-top:14px"></div></div>`;}
+async function loadAdminUsers(){
+try{const r=await api('/api/admin/users');
+let h=`<table><thead><tr><th>ID</th><th>用户名</th><th>角色</th><th>邮箱</th><th>状态</th><th>持仓</th><th>日志</th><th>注册时间</th><th>操作</th></tr></thead><tbody>`;
+r.users.forEach(u=>{
+const st=u.is_active?'<span class="cg">激活</span>':'<span class="cr">禁用</span>';
+const role=u.role==='admin'?'<span class="cy">管理员</span>':'用户';
+h+=`<tr><td>${u.id}</td><td class="cb">${u.username}</td><td>${role}</td><td style="color:var(--t3);font-size:11px">${u.email||'-'}</td>
+<td>${st}</td><td>${u.portfolio_count}</td><td>${u.trade_log_count}</td>
+<td style="font-size:10px;color:var(--t3)">${(u.created_at||'').slice(0,10)}</td>
+<td><button class="btn btn-sm btn-o" onclick="viewUserDetail(${u.id})">详情</button>
+<button class="btn btn-sm btn-o" onclick="toggleUser(${u.id})">${u.is_active?'禁用':'启用'}</button></td></tr>`;
+});
+h+='</tbody></table>';
+document.getElementById('adminUsers').innerHTML=h;}catch(e){}
 }
+async function viewUserDetail(uid){
+const el=document.getElementById('adminDetail');
+el.innerHTML='<span class="info">加载中...</span>';
+try{const r=await api('/api/admin/user/'+uid);
+let h=`<div class="card"><h4>📋 ${r.user.username} 详情 (ID:${uid})</h4>`;
+h+='<p style="color:var(--t2);font-size:11px">角色: '+(r.user.role==='admin'?'管理员':'用户')+' | 状态: '+(r.user.is_active?'激活':'禁用')+' | 注册: '+(r.user.created_at||'')+'</p>';
+if(r.portfolios.length){
+h+='<p style="margin-top:8px;color:var(--t2)">📦 持仓:</p><table><thead><tr><th>代码</th><th>名称</th><th>数量</th><th>成本</th></tr></thead><tbody>';
+r.portfolios.forEach(p=>{h+=`<tr><td class="cb">${p.symbol}</td><td>${p.name}</td><td>${p.quantity}</td><td>¥${p.avg_cost}</td></tr>`;});
+h+='</tbody></table>';}else{h+='<p style="color:var(--t3)">无持仓</p>';}
+if(r.strategies.length){
+h+='<p style="margin-top:8px;color:var(--t2)">🧪 策略配置 ('+r.strategies.length+'个):</p>';
+r.strategies.forEach(s=>{h+=`<span style="display:inline-block;margin:2px;padding:2px 8px;background:var(--bg3);border-radius:4px;font-size:11px">${s.name} ${s.is_active?'✅':'❌'}</span>`;});
+}
+if(r.trade_logs.length){
+h+='<p style="margin-top:8px;color:var(--t2)">📝 最近交易建议:</p><table><thead><tr><th>时间</th><th>代码</th><th>操作</th><th>评分</th><th>理由</th></tr></thead><tbody>';
+r.trade_logs.forEach(t=>{h+=`<tr><td style="font-size:10px">${(t.created_at||'').slice(0,16)}</td><td class="cb">${t.symbol}</td><td>${t.action}</td><td>${t.score}</td><td style="font-size:10px;color:var(--t3)">${t.reason||''}</td></tr>`;});
+h+='</tbody></table>';}
+h+='</div>';el.innerHTML=h;}catch(e){el.innerHTML='<span class="err">加载失败</span>';}
+}
+async function toggleUser(uid){
+try{await fetch('/api/admin/user/'+uid,{method:'DELETE',headers:{'Content-Type':'application/json','Authorization':'Bearer '+AUTH.token}});
+loadAdminUsers();toast('用户状态已切换');}catch(e){}
 }
 
 // ═══════════════ Dashboard ═══════════════
@@ -449,6 +883,7 @@ let chart=null,cs=null;
 async function loadChart(sym){
 sym=sym||S.sym;
 document.getElementById('chartTitle').innerHTML=`📈 ${sym} ${S.sname} <span class="price">K线图</span>`;
+if(!HAS_CHARTS())return;
 try{const d=await api('/api/chart_data?symbol='+sym);
 if(!d.data||!d.data.length)return;
 const ct=document.getElementById('tvchart');
@@ -468,7 +903,7 @@ cs.setData(d.data.map(r=>({time:r.time,open:r.open,high:r.high,low:r.low,close:r
 chart.timeScale().fitContent();
 }catch(e){console.error(e)}
 }
-window.addEventListener('resize',()=>{if(chart){const ct=document.getElementById('tvchart');chart.resize(ct.clientWidth,ct.clientHeight);}});
+window.addEventListener('resize',()=>{if(chart&&HAS_CHARTS()){const ct=document.getElementById('tvchart');if(ct)chart.resize(ct.clientWidth,ct.clientHeight);}});
 
 // ═══════════════ Backtest Panel ═══════════════
 function buildBacktest(){
@@ -665,6 +1100,7 @@ try{const r=await api('/api/database/migrate');
 document.getElementById('dbContent').innerHTML=`<span class="ok">迁移完成! 处理了${r.count||0}个文件</span>`;
 loadDatabase();}catch(e){document.getElementById('dbContent').innerHTML=`<span class="err">${e}</span>`}
 }
+	function buildAIChat(){
 return `<div class="card"><h3>🤖 AI 量化助手</h3><div class="sub">和AI聊量化 · 策略 · 市场 · 复盘</div>
 <div style="display:flex;gap:8px;margin-bottom:12px">
 <input id="aiMsg" placeholder="输入问题... 如: 分析一下最近的行情" style="flex:1"
@@ -842,8 +1278,10 @@ document.getElementById(id).innerHTML=r.strategies.map(s=>`<option value="${s.ke
 }
 
 // ═══════════════ Init ═══════════════
-window.addEventListener('DOMContentLoaded',()=>{
-buildNav();initSearch();renderPanel('dashboard');
+window.addEventListener('DOMContentLoaded',async()=>{
+buildNav();initSearch();
+await checkAuth();
+if(AUTH.loggedIn){renderPanel('dashboard');}
 });
 </script>
 </body>
@@ -855,7 +1293,30 @@ buildNav();initSearch();renderPanel('dashboard');
 
 @app.route('/')
 def index():
+    return redirect('/login')
+
+@app.route('/login')
+def login_page():
+    return render_template('login.html')
+
+@app.route('/studio')
+def studio_page():
+    return render_template('studio.html')
+
+@app.route('/classic')
+def classic_dashboard():
+    """原有完整功能面板 — 侧边栏菜单 + 仪表盘 + 回测 + AI 等全功能"""
     return HTML
+
+@app.route('/admin')
+def admin_page():
+    """独立管理员控制台 — 仅管理员可访问"""
+    return render_template('admin.html')
+
+@app.route('/game')
+def game_page():
+    """模拟交易大厅 — 100万模拟金"""
+    return render_template('game.html')
 
 @app.route('/metrics')
 def api_metrics():
@@ -903,8 +1364,364 @@ def api_status():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+
+# ============================================================
+# 认证 API (v5.1 — 多用户)
+# ============================================================
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    """用户注册 — 所有人可注册，默认角色为 user"""
+    d = request.json or {}
+    username = d.get("username", "").strip()
+    password = d.get("password", "")
+    email = d.get("email", "").strip()
+
+    if not username or len(username) < 2:
+        return jsonify({"error": "用户名至少需要 2 位字符"}), 400
+
+    from src.auth import validate_password_strength
+    valid, msg = validate_password_strength(password)
+    if not valid:
+        return jsonify({"error": msg}), 400
+
+    from src.database import SessionLocal
+    from src.database.models import User
+    from src.auth import hash_password
+
+    db = SessionLocal()
+    try:
+        existing = db.query(User).filter_by(username=username).first()
+        if existing:
+            return jsonify({"error": "用户名已被占用"}), 409
+
+        user = User(
+            username=username,
+            password_hash=hash_password(password),
+            email=email,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        return jsonify({
+            "ok": True,
+            "user_id": user.id,
+            "message": "注册成功，请登录",
+        })
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": f"注册失败: {e}"}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    """用户登录 — 返回 JWT access_token"""
+    d = request.json or {}
+    username = d.get("username", "").strip()
+    password = d.get("password", "")
+
+    if not username or not password:
+        return jsonify({"error": "请输入用户名和密码"}), 400
+
+    from src.database import SessionLocal
+    from src.database.models import User
+    from src.auth import verify_password, generate_token
+    from datetime import datetime, timezone
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(username=username).first()
+        if not user:
+            return jsonify({"error": "用户名或密码错误"}), 401
+
+        if not user.is_active:
+            return jsonify({"error": "账户已被禁用"}), 403
+
+        if not verify_password(password, user.password_hash):
+            return jsonify({"error": "用户名或密码错误"}), 401
+
+        user.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
+        db.commit()
+
+        token = generate_token(user.id)
+
+        return jsonify({
+            "ok": True,
+            "access_token": token,
+            "user": user.to_dict(),
+        })
+    except Exception as e:
+        return jsonify({"error": f"登录失败: {e}"}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/me', methods=['GET'])
+@token_required
+def api_me():
+    """获取当前登录用户信息（需 Bearer token）"""
+    from flask import g
+    from src.database import SessionLocal
+    from src.database.models import User
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(id=g.user_id).first()
+        if not user:
+            return jsonify({"error": "用户不存在"}), 404
+        return jsonify({"ok": True, "user": user.to_dict()})
+    finally:
+        db.close()
+
+
+@app.route('/api/portfolio', methods=['GET', 'POST'])
+@token_required
+def api_portfolio():
+    """用户持仓管理 — GET 查看, POST 增/改"""
+    from flask import g
+    from src.portfolio import PortfolioManager
+
+    pm = PortfolioManager(user_id=g.user_id)
+
+    if request.method == 'GET':
+        try:
+            df = pm.get_all()
+            prices_param = request.args.get("prices", "")
+            total_value = 0.0
+            if prices_param:
+                import json as _json
+                try:
+                    prices = _json.loads(prices_param)
+                    total_value = pm.get_total_value(prices)
+                except Exception:
+                    pass
+            return jsonify({
+                "ok": True,
+                "positions": df.to_dict(orient="records") if not df.empty else [],
+                "count": len(df),
+                "total_value": total_value,
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # POST — 添加/更新持仓
+    d = request.json or {}
+    symbol = d.get("symbol", "").strip()
+    quantity = int(d.get("quantity", 0))
+    price = float(d.get("price", 0))
+
+    if not symbol:
+        return jsonify({"error": "请提供股票代码"}), 400
+
+    try:
+        result = pm.add_or_update(
+            symbol=symbol,
+            quantity=quantity,
+            price=price,
+            name=d.get("name", ""),
+            market=d.get("market", "A股"),
+        )
+        return jsonify({"ok": True, **result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ═══════════════════════════════════════════════════════════
+# 策略列表 API (v5.3 — 前端控制台)
+# ═══════════════════════════════════════════════════════════
+
+@app.route('/api/strategy_list')
+def api_strategy_list():
+    """返回所有策略+参数白名单，供前端动态生成滑块"""
+    from src.config import PARAM_WHITELIST
+    from src.strategies.library import STRATEGIES
+    from src.factors.composer import PRESET_STRATEGIES
+
+    result = []
+    for key, info in STRATEGIES.items():
+        if info["class"] is None:
+            continue  # 跳过 ensemble 等特殊策略
+        whitelist = PARAM_WHITELIST.get(key, {})
+        params_spec = {}
+        for pname, pspec in whitelist.items():
+            params_spec[pname] = {
+                "min": pspec["range"][0] if pspec["range"] else 0,
+                "max": pspec["range"][1] if pspec["range"] else 1,
+                "default": info.get("params", {}).get(pname, pspec["range"][0] if pspec["range"] else 0) if isinstance(info.get("params", {}), dict) else pspec["range"][0] if pspec["range"] else 0,
+                "type": "int" if pspec["type"] is int else ("float" if pspec["type"] is float else "bool"),
+            }
+        result.append({
+            "key": key,
+            "name": info["name"],
+            "description": info.get("description", ""),
+            "params": params_spec,
+        })
+
+    # 添加预设组合策略
+    for key, info in PRESET_STRATEGIES.items():
+        result.append({
+            "key": key,
+            "name": info["name"],
+            "description": info.get("description", ""),
+            "params": {},
+        })
+
+    return jsonify({"strategies": result})
+
+# ═══════════════════════════════════════════════════════════
+# 运行策略 API — 前端控制台回测入口
+# ═══════════════════════════════════════════════════════════
+
+@app.route('/api/run_strategy', methods=['POST'])
+@token_required
+def api_run_strategy():
+    from flask import g
+    d = request.json or {}
+    sym = d.get("symbol", "601398")
+    sk = d.get("strategy", "ma_cross")
+    start = d.get("start_date", "2024-01-01")
+    custom_params = d.get("params", {})
+
+    try:
+        from src.backtest.data_feed import get_data
+        from src.backtest.engine import BacktestEngine
+        from src.backtest.batch_runner import _make_strategy_instance
+        from src.auth.auth import create_token_checker
+
+        data = get_data(sym, "A股", start_date=start)
+        if data is None or len(data) == 0:
+            return jsonify({"error": f"未获取到 {sym} 的数据"}), 404
+
+        strategy = _make_strategy_instance(sk, custom_params, sym, user_id=g.user_id)
+
+        auth_header = request.headers.get("Authorization", "")
+        token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
+        engine = BacktestEngine(token_validator=create_token_checker(token) if token else None)
+        result = engine.run(strategy, data)
+
+        # Build K-line data for ECharts
+        kline = []
+        for _, row in data.iterrows():
+            kline.append([
+                str(row["date"])[:10],
+                float(row["open"]),
+                float(row["close"]),
+                float(row["low"]),
+                float(row["high"]),
+            ])
+
+        # Build trades list
+        trades = [
+            {
+                "date": t["date"],
+                "action": t["action"],
+                "price": round(t.get("price", 0), 2),
+                "quantity": t.get("quantity", 0),
+            }
+            for t in result["portfolio"].trade_log[-30:]
+        ]
+
+        return jsonify({
+            "data_rows": len(data),
+            "date_range": f"{str(data['date'].iloc[0])[:10]} ~ {str(data['date'].iloc[-1])[:10]}",
+            "metrics": result["metrics"],
+            "kline": kline,
+            "trades": trades,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════
+# 管理员 API (v5.2 — 超级管理员)
+# ═══════════════════════════════════════════════════════════
+
+@app.route('/api/admin/users')
+@admin_required
+def api_admin_users():
+    """列出所有用户"""
+    from flask import g
+    from src.database import SessionLocal
+    from src.database.models import User, Portfolio, UserTradeLog
+
+    db = SessionLocal()
+    try:
+        users = db.query(User).order_by(User.created_at.desc()).all()
+        result = []
+        for u in users:
+            pos_count = db.query(Portfolio).filter_by(user_id=u.id).count()
+            log_count = db.query(UserTradeLog).filter_by(user_id=u.id).count()
+            result.append({
+                **u.to_dict(),
+                "portfolio_count": pos_count,
+                "trade_log_count": log_count,
+            })
+        return jsonify({"ok": True, "users": result, "total": len(result)})
+    finally:
+        db.close()
+
+
+@app.route('/api/admin/user/<int:uid>')
+@admin_required
+def api_admin_user_detail(uid):
+    """查看指定用户的完整数据"""
+    from src.database import SessionLocal
+    from src.database.models import User, Portfolio, StrategyConfig, UserTradeLog
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(id=uid).first()
+        if not user:
+            return jsonify({"error": "用户不存在"}), 404
+
+        portfolios = [p.to_dict() for p in db.query(Portfolio).filter_by(user_id=uid).all()]
+        strategies = [s.to_dict() for s in db.query(StrategyConfig).filter_by(user_id=uid).all()]
+        trade_logs = [t.to_dict() for t in db.query(UserTradeLog).filter_by(user_id=uid).order_by(UserTradeLog.created_at.desc()).limit(50).all()]
+
+        return jsonify({
+            "ok": True,
+            "user": user.to_dict(),
+            "portfolios": portfolios,
+            "strategies": strategies,
+            "trade_logs": trade_logs,
+        })
+    finally:
+        db.close()
+
+
+@app.route('/api/admin/user/<int:uid>', methods=['DELETE'])
+@admin_required
+def api_admin_disable_user(uid):
+    """禁用/启用用户（切换 is_active）"""
+    from src.database import SessionLocal
+    from src.database.models import User
+
+    if uid == g.user_id:
+        return jsonify({"error": "不能禁用自己"}), 400
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(id=uid).first()
+        if not user:
+            return jsonify({"error": "用户不存在"}), 404
+        if user.role == "admin":
+            return jsonify({"error": "不能禁用管理员"}), 403
+        user.is_active = not user.is_active
+        db.commit()
+        return jsonify({"ok": True, "is_active": user.is_active, "message": f"用户已{'启用' if user.is_active else '禁用'}"})
+    except Exception as e:
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db.close()
+
+
 @app.route('/api/backtest', methods=['POST'])
+@token_required
 def api_backtest():
+    from flask import g
     d = request.json
     try:
         from src.backtest.data_feed import get_data
@@ -913,8 +1730,13 @@ def api_backtest():
         sym = d.get("symbol", "601398"); sk = d.get("strategy", "ma_cross")
         start = d.get("start_date", "2024-01-01"); end = d.get("end_date") or None
         data = get_data(sym, "A股", start_date=start, end_date=end)
-        s = _make_strategy_instance(sk, {}, sym)
-        r = BacktestEngine().run(s, data)
+        s = _make_strategy_instance(sk, {}, sym, user_id=g.user_id)
+        # 陷阱4: 创建 token 过期检查器，防止长时间回测在 token 过期后继续跑
+        from src.auth.auth import create_token_checker
+        auth_header = request.headers.get("Authorization", "")
+        token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
+        engine = BacktestEngine(token_validator=create_token_checker(token) if token else None)
+        r = engine.run(s, data)
         equity = [{"time": str(x["date"])[:10], "value": x["total_value"]} for x in r["portfolio"].daily_values[::5]]
         return jsonify({"data_rows": len(data),
                        "date_range": f"{str(data['date'].iloc[0])[:10]} ~ {str(data['date'].iloc[-1])[:10]}",
@@ -925,7 +1747,9 @@ def api_backtest():
         return jsonify({"error": str(e)})
 
 @app.route('/api/diagnosis', methods=['POST'])
+@token_required
 def api_diagnosis():
+    from flask import g
     d = request.json; sym = d.get("symbol", "601398"); start = d.get("start_date", "2022-01-01")
     try:
         from src.backtest.data_feed import get_data, download_watchlist, get_data_summary
@@ -961,7 +1785,7 @@ def api_diagnosis():
             for src in [STRATEGIES, PRESET_STRATEGIES]:
                 if key in src: name = src[key].get("name", key); break
             try:
-                s = _make_strategy_instance(key, {}, sym)
+                s = _make_strategy_instance(key, {}, sym, user_id=g.user_id)
                 r = BacktestEngine().run(s, data); m = r["metrics"]
                 try: sh = float(str(m.get("夏普比率",-99)))
                 except: sh = -99
@@ -1005,13 +1829,15 @@ def api_diagnosis():
         return jsonify({"error": str(e)})
 
 @app.route('/api/daily_scan', methods=['POST'])
+@token_required
 def api_daily_scan():
+    from flask import g
     data = request.json; full = data.get("full", False)
     try:
         from daily_runner import quick_diagnosis, DEFAULT_WATCHLIST
         results = []
         for item in DEFAULT_WATCHLIST[:13]:
-            r = quick_diagnosis(item["symbol"], item.get("market","A股"), item.get("name",item["symbol"]), full=full)
+            r = quick_diagnosis(item["symbol"], item.get("market","A股"), item.get("name",item["symbol"]), full=full, user_id=g.user_id)
             results.append(r)
         results.sort(key=lambda r: r["score"], reverse=True)
         scan = [{"symbol":r["symbol"],"name":r.get("name",""),"price":r["price"],"score":r["score"],
@@ -1078,96 +1904,425 @@ def api_stock_search():
     except Exception as e:
         return jsonify({"error": str(e)})
 
-@app.route('/api/daily_brief')
-def api_daily_brief():
-    """每日开盘简报: 持仓检查 + 强势股 + AI分析"""
-    try:
-        from src.models.trade import TradeRepository
-        from src.backtest.data_feed import get_data, get_data_summary, download_watchlist
-        from src.factors.definitions import FactorCalculator
-        from datetime import datetime
 
-        today = datetime.now().strftime("%Y-%m-%d")
-        repo = TradeRepository()
+# ============================================================
+# 实时行情查询 API (v5.3)
+# ============================================================
 
-        # 1. 持仓分析
-        positions = repo.find_open_positions()
-        pos_analysis = []
-        for p in positions:
-            try:
-                d = get_data(p.symbol, "A股", start_date="2023-01-01")
-                price = float(d["close"].iloc[-1])
-                cost = p.price
-                pnl_pct = (price/cost - 1) * 100
-                calc = FactorCalculator(d)
-                cf = calc.compute_all().iloc[-1]
-                rsi = float(cf.get("rsi_norm", 0.5))
-                ma = float(cf.get("ma_alignment", 0.5))
-                bb = float(cf.get("bollinger_pos", 0.5))
-                # Health score
-                health = 50
-                if rsi < 0.3: health -= 20; rsi_sig = "超卖"
-                elif rsi > 0.7: health -= 10; rsi_sig = "超买"
-                else: rsi_sig = "正常"
-                if ma > 0.6: health += 15
-                elif ma < 0.3: health -= 15
-                pos_analysis.append({
-                    "symbol": p.symbol, "name": p.name, "cost": cost, "price": round(price,2),
-                    "pnl_pct": round(pnl_pct,1), "qty": p.quantity,
-                    "value": round(price * p.quantity, 0),
-                    "health": health, "rsi": f"{rsi*100:.0f}", "rsi_sig": rsi_sig,
-                    "ma": f"{ma:.2f}", "bb": f"{bb:.2f}",
-                    "action": "持有" if health > 30 else ("减仓" if health > 10 else "建议离场")
-                })
-            except: pass
+_quote_cache = {}
+_quote_cache_time = {}
 
-        # 2. 强势股扫描 (默认列表)
-        watchlist = ["600498","601398","000858","600519","300750","000001","600036","002594","000333","601318","600900","688981","300059"]
-        strong_stocks = []
-        for sym in watchlist:
-            try:
-                d = get_data(sym, "A股", start_date="2024-01-01")
-                price = float(d["close"].iloc[-1])
-                calc = FactorCalculator(d)
-                cf = calc.compute_all().iloc[-1]
-                rsi = float(cf.get("rsi_norm", 0.5))
-                ma = float(cf.get("ma_alignment", 0.5))
-                mom = float(cf.get("momentum_score", 0.5))
-                score = 0
-                if rsi < 0.3: score += 25
-                elif rsi > 0.7: score -= 15
-                else: score += 10
-                if ma > 0.7: score += 20
-                elif ma < 0.3: score -= 10
-                if mom > 0.6: score += 15
-                if score >= 25:
-                    strong_stocks.append({"symbol": sym, "price": round(price,2), "score": score,
-                                         "rsi": f"{rsi*100:.0f}", "ma": f"{ma:.2f}", "mom": f"{mom:.2f}"})
-            except: pass
-        strong_stocks.sort(key=lambda x: x["score"], reverse=True)
 
-        # 3. AI 简报
-        ai_brief = ""
+
+# ============================================================
+# 价格预警引擎
+# ============================================================
+ALERTS = []  # [{user_id, symbol, direction:"above"/"below", price, id}]
+_alert_id = [0]
+
+def check_alerts(symbol: str, current_price: float):
+    """检查预警触发，返回触发的预警列表"""
+    triggered = []
+    for a in ALERTS:
+        if a["symbol"] != symbol: continue
+        if a["direction"] == "above" and current_price >= a["price"]:
+            triggered.append(a)
+        elif a["direction"] == "below" and current_price <= a["price"]:
+            triggered.append(a)
+    # 移除已触发的
+    for t in triggered:
+        ALERTS[:] = [a for a in ALERTS if a["id"] != t["id"]]
+    return triggered
+
+@app.route('/api/alert', methods=['GET','POST','DELETE'])
+@token_required
+def api_alert():
+    from flask import g
+    if request.method == 'POST':
+        d = request.json or {}
+        _alert_id[0] += 1
+        alert = {"id": _alert_id[0], "user_id": g.user_id,
+                 "symbol": d.get("symbol",""), "direction": d.get("direction","above"),
+                 "price": float(d.get("price",0))}
+        ALERTS.append(alert)
+        return jsonify({"ok": True, "alert": alert})
+    elif request.method == 'DELETE':
+        aid = int(request.args.get("id", 0))
+        ALERTS[:] = [a for a in ALERTS if not (a["user_id"]==g.user_id and a["id"]==aid)]
+        return jsonify({"ok": True})
+    else:
+        mine = [a for a in ALERTS if a["user_id"]==g.user_id]
+        return jsonify({"alerts": mine})
+
+
+
+
+@app.route('/api/kline')
+def api_kline_simple():
+    """简单K线接口 — 从CSV读取，保证数据可控"""
+    import pandas as pd, os
+    symbol = request.args.get('symbol', '000001')
+
+    data = []
+    # 从统一CSV读取
+    csv_path = 'D:/trading_data/ohlcv_daily.csv'
+    if os.path.exists(csv_path):
         try:
-            from src.ai.assistants import AIMarketAnalyst
-            ai_brief = AIMarketAnalyst().daily_brief()
-        except: pass
+            df = pd.read_csv(csv_path)
+            sub = df[df['symbol'] == symbol].sort_values('date').tail(60)
+            for _, row in sub.iterrows():
+                data.append({
+                    "time": str(row['date'])[:10],
+                    "open": float(row['open']),
+                    "high": float(row['high']),
+                    "low": float(row['low']),
+                    "close": float(row['close']),
+                    "volume": int(row['volume']),
+                })
+        except Exception as e:
+            print(f"[Kline] CSV读取失败: {e}")
 
-        total_value = sum(p["value"] for p in pos_analysis)
-        total_pnl = sum((p["price"]-p["cost"])*p["qty"] for p in pos_analysis)
+    # 降级：从缓存CSV读取
+    if not data:
+        cache_file = f'D:/trading_data/cache/A股_{symbol}_daily.csv'
+        if os.path.exists(cache_file):
+            try:
+                df = pd.read_csv(cache_file)
+                for _, row in df.tail(60).iterrows():
+                    data.append({
+                        "time": str(row.get('date',''))[:10],
+                        "open": float(row['open']), "high": float(row['high']),
+                        "low": float(row['low']), "close": float(row['close']),
+                        "volume": int(row.get('volume',0)),
+                    })
+            except Exception:
+                pass
 
-        return jsonify({
-            "date": today, "positions": pos_analysis,
-            "total_positions": len(positions), "total_value": round(total_value,0),
-            "total_pnl": round(total_pnl,0),
-            "strong_stocks": strong_stocks[:8],
-            "ai_brief": ai_brief[:500] if ai_brief else ""
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)})
+    latest = data[-1]['close'] if data else 0
+    return jsonify({"symbol": symbol, "data": data, "latest_price": latest, "count": len(data)})
+
+
+@app.route('/api/kline/poll')
+def api_kline_poll():
+    """HTTP轮询K线 — 合并CSV历史 + 实时缓存"""
+    import pandas as pd, os
+    symbol = request.args.get('symbol', '000001')
+    period = request.args.get('period', '1min')
+
+    # 1. 从CSV读取历史日线，拆为日内K线
+    cache_file = f"D:/trading_data/cache/A股_{symbol}_daily.csv"
+    hist_bars = []
+    if os.path.exists(cache_file):
+        try:
+            df = pd.read_csv(cache_file)
+            for _, row in df.tail(3).iterrows():
+                date_str = str(row.get("date", ""))[:10]
+                o, h, l, c, v = float(row["open"]), float(row["high"]), float(row["low"]), float(row["close"]), int(row.get("volume", 0))
+                daily_range = h - l
+                # 拆为4根有涨有跌的日内K线
+                steps = [
+                    ("10:00", o,        o + daily_range*0.3, h*0.99, l*1.01),          # 开盘冲高
+                    ("11:00", o + daily_range*0.2, o - daily_range*0.05, h, l),       # 冲高回落
+                    ("13:00", o - daily_range*0.05, o + daily_range*0.15, h, l*1.01), # 下午反弹
+                    ("14:30", o + daily_range*0.1, c, h, l),                            # 收在收盘价
+                ]
+                for tm, bo, bc, bh, bl in steps:
+                    hist_bars.append({"time": date_str+" "+tm, "open": round(bo,2), "high": round(max(bo,bc,bh),2), "low": round(min(bo,bc,bl),2), "close": round(bc,2), "volume": int(v/4)})
+        except Exception:
+            pass
+
+    # 2. 合并实时缓存（覆盖/追加今日数据）
+    rt_bars = []
+    if _kline_agg:
+        rt_bars = _kline_agg.get_bars(symbol, period)
+
+    # 合并：历史 + 实时（去重time）
+    seen = set()
+    merged = []
+    for b in hist_bars + rt_bars:
+        t = b.get("time", "")
+        if t not in seen:
+            seen.add(t)
+            merged.append(b)
+
+    latest_price = merged[-1]["close"] if merged else 0
+
+    # 3. 读取交易信号
+    signals = []
+    try:
+        import sqlite3
+        conn = sqlite3.connect("D:/trading_data/users.db")
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT symbol, action, price, reason, created_at FROM user_trade_logs WHERE symbol=? ORDER BY created_at DESC LIMIT 20",
+            (symbol,)).fetchall()
+        conn.close()
+        for r in rows:
+            ts = r["created_at"] if r["created_at"] else ""
+            time_str = ts[-8:-3] if len(ts) > 8 else ts
+            signals.append({
+                "time": time_str,
+                "action": r["action"],
+                "price": r["price"],
+                "reason": r["reason"],
+            })
+    except Exception:
+        pass
+
+    return jsonify({
+        "symbol": symbol, "period": period,
+        "data": merged[-120:],
+        "latest_price": latest_price,
+        "count": len(merged),
+        "signals": signals,
+    })
+
+
+@app.route('/api/kline/<symbol>')
+def api_kline_data(symbol):
+    """返回K线数据 + 触发历史回填"""
+    if _kline_agg:
+        # 首次请求时回填历史
+        _kline_agg.load_history(symbol)
+    bars_1min = _kline_agg.get_bars(symbol, "1min") if _kline_agg else []
+    bars_5min = _kline_agg.get_bars(symbol, "5min") if _kline_agg else []
+    return jsonify({
+        "symbol": symbol,
+        "1min": bars_1min,
+        "5min": bars_5min,
+    })
+
+
+@app.route('/api/stock/quote')
+@token_required
+def api_stock_quote():
+    """实时个股行情 — 优先内存缓存 > akshare > 腾讯财经降级"""
+    symbol = request.args.get("symbol", "").strip()
+    if not symbol:
+        return jsonify({"code": 400, "msg": "请提供股票代码"}), 400
+    symbol = symbol.replace("sh", "").replace("sz", "").strip()
+    if len(symbol) != 6 or not symbol.isdigit():
+        return jsonify({"code": 400, "msg": "股票代码格式错误，请输入6位数字"}), 400
+
+    # 优先从实时内存缓存返回（SocketIO 模拟器每秒更新）
+    if symbol in REALTIME_CACHE:
+        d = REALTIME_CACHE[symbol]
+        return jsonify({"code": 200, "data": {
+            "symbol": symbol, "name": d["name"], "price": d["price"],
+            "change": d["change"], "change_pct": d["change_pct"],
+            "volume": d["volume"], "high": d["high"], "low": d["low"],
+            "open": d["open"],
+            "pre_close": round(d["price"] / (1 + d["change_pct"]/100), 2) if d["change_pct"] else d["price"],
+        }})
+
+    import time as _time
+    now = _time.time()
+    if symbol in _quote_cache and (now - _quote_cache_time.get(symbol, 0)) < 5:
+        return jsonify(_quote_cache[symbol])
+
+    result = _fetch_from_akshare(symbol)
+    if result is None:
+        result = _fetch_from_tencent(symbol)
+
+    if result is None:
+        # 两个数据源都失败 — 网络异常
+        return jsonify({"code": 500, "msg": "数据源异常，请稍后重试"}), 500
+
+    if result.get("code") == 404:
+        # 数据源正常但不存此股 — 短缓存
+        _quote_cache[symbol] = result
+        _quote_cache_time[symbol] = now
+        return jsonify(result), 404
+
+    _quote_cache[symbol] = result
+    _quote_cache_time[symbol] = now
+    return jsonify(result)
+
+
+def _fetch_from_akshare(symbol):
+    try:
+        import akshare as ak
+        df = ak.stock_zh_a_spot_em()
+        if df is None or df.empty:
+            return None
+        row = df[df["代码"] == symbol]
+        if row.empty:
+            return {"code": 404, "msg": "未找到该股票"}
+        r = row.iloc[0]
+        return {"code": 200, "data": {
+            "symbol": symbol,
+            "name": str(r.get("名称", "")),
+            "price": float(r.get("最新价", 0)),
+            "change": float(r.get("涨跌额", 0)),
+            "change_pct": float(r.get("涨跌幅", 0)),
+            "volume": int(r.get("成交量", 0)),
+            "high": float(r.get("最高", 0)),
+            "low": float(r.get("最低", 0)),
+            "open": float(r.get("今开", 0)),
+            "pre_close": float(r.get("昨收", 0)),
+        }}
+    except Exception:
+        return None
+
+
+def _fetch_from_tencent(symbol):
+    try:
+        import urllib.request
+        qcode = f"sh{symbol}" if symbol.startswith(("6", "9")) else f"sz{symbol}"
+        url = f"https://qt.gtimg.cn/q={qcode}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            text = resp.read().decode("gbk", errors="replace")
+        if '=""' in text:
+            return {"code": 404, "msg": "未找到该股票"}
+        parts = text.split("~")
+        if len(parts) < 40:
+            return None
+        return {"code": 200, "data": {
+            "symbol": symbol, "name": parts[1],
+            "price": float(parts[3] or 0),
+            "change": round(float(parts[3] or 0) - float(parts[4] or 0), 2),
+            "change_pct": float(parts[32] or 0),
+            "volume": int(parts[6] or 0),
+            "high": float(parts[33] or 0), "low": float(parts[34] or 0),
+            "open": float(parts[5] or 0), "pre_close": float(parts[4] or 0),
+        }}
+    except Exception:
+        return None
+
+
+@app.route('/api/daily_brief')
+
+def api_daily_brief():
+    """每日开盘简报: 持仓检查 + 强势股 — 轻量版，仅用缓存数据"""
+    from src.models.trade import TradeRepository
+    from datetime import datetime
+    import os, pandas as pd
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    repo = TradeRepository()
+    cache_dir = os.path.join(os.environ.get("TRADING_DATA_DIR", "D:/trading_data"), "cache")
+
+    # 1. 持仓分析 — 从缓存读OHLCV
+    positions = repo.find_open_positions()
+    pos_analysis = []
+    for p in positions:
+        try:
+            cache_file = os.path.join(cache_dir, f"A股_{p.symbol}_daily.csv")
+            if not os.path.exists(cache_file):
+                pos_analysis.append({
+                    "symbol": p.symbol, "name": p.name, "cost": p.price,
+                    "price": p.price, "pnl_pct": 0, "qty": p.quantity,
+                    "value": round(p.price * p.quantity, 0),
+                    "health": 50, "rsi": "--", "rsi_sig": "无数据",
+                    "ma": "--", "bb": "--", "action": "持有"
+                })
+                continue
+            df = pd.read_csv(cache_file)
+            if len(df) < 20:
+                continue
+            price = float(df["close"].iloc[-1])
+            cost = p.price
+            pnl_pct = round((price/cost - 1) * 100, 1)
+            # 简单技术指标
+            close = df["close"]
+            ma20 = close.rolling(20).mean().iloc[-1]
+            ma_pos = "多头" if price > ma20 else "空头"
+            delta = close.diff()
+            gain = delta.clip(lower=0).rolling(14).mean().iloc[-1]
+            loss = (-delta).clip(lower=0).rolling(14).mean().iloc[-1]
+            rsi_val = int(100 - 100/(1 + gain/loss)) if loss > 0 else 50
+            health = 50
+            if rsi_val < 30: health -= 20; rsi_sig = "超卖"
+            elif rsi_val > 70: health -= 10; rsi_sig = "超买"
+            else: rsi_sig = "正常"
+            if ma_pos == "多头": health += 15
+            else: health -= 15
+            pos_analysis.append({
+                "symbol": p.symbol, "name": p.name, "cost": cost,
+                "price": round(price, 2), "pnl_pct": pnl_pct,
+                "qty": p.quantity, "value": round(price * p.quantity, 0),
+                "health": health, "rsi": str(rsi_val), "rsi_sig": rsi_sig,
+                "ma": ma_pos, "bb": "--", "action": "持有" if health > 30 else ("减仓" if health > 10 else "建议离场")
+            })
+        except Exception:
+            pass
+
+    # 2. 强势股 — 全库扫描所有缓存中的股票
+    strong_stocks = []
+    if os.path.isdir(cache_dir):
+        for fname in os.listdir(cache_dir):
+            if not fname.endswith("_daily.csv"):
+                continue
+            # 解析文件名: A股_000858_daily.csv → sym=000858
+            parts = fname.replace("_daily.csv", "").split("_")
+            if len(parts) < 2:
+                continue
+            sym = parts[-1]  # 取最后一段作为代码
+            market = parts[0] if parts[0] in ("A股", "美股", "港股") else "A股"
+            try:
+                df = pd.read_csv(os.path.join(cache_dir, fname))
+                if len(df) < 20:
+                    continue
+                price = float(df["close"].iloc[-1])
+                close = df["close"]
+                ma20 = close.rolling(20).mean().iloc[-1]
+                ma60 = close.rolling(60).mean().iloc[-1] if len(df) >= 60 else ma20
+                delta = close.diff()
+                gain = delta.clip(lower=0).rolling(14).mean().iloc[-1]
+                loss = (-delta).clip(lower=0).rolling(14).mean().iloc[-1]
+                rsi_val = int(100 - 100/(1 + gain/loss)) if loss > 0 else 50
+                # 综合评分: 基础分 + RSI超卖加分 + 均线多头加分 + 趋势强度
+                score = 15  # 基础分
+                if rsi_val < 25: score += 30       # 深度超卖，反弹概率大
+                elif rsi_val < 35: score += 20     # 超卖
+                elif rsi_val < 45: score += 10     # 偏弱但接近
+                elif rsi_val > 75: score -= 15     # 严重超买
+                elif rsi_val > 65: score -= 5       # 偏贵
+                if price > ma20: score += 10        # 站上20日均线
+                if price > ma60: score += 5         # 站上60日均线
+                # 近期涨跌幅
+                if len(df) >= 5:
+                    week_ret = (price / float(df["close"].iloc[-5]) - 1) * 100
+                    if -5 < week_ret < 2: score += 5  # 温和回调
+                    elif week_ret > 10: score -= 5     # 短期涨太多
+                strong_stocks.append({
+                    "symbol": sym, "market": market,
+                    "price": round(price, 2), "score": score,
+                    "rsi": str(rsi_val), "ma": "多头" if price > ma20 else "空头",
+                    "name": ""
+                })
+            except Exception:
+                pass
+    # 补充股票名称
+    try:
+        from src.data.stock_db import ensure_stock_db
+        sdb = ensure_stock_db()
+        for s in strong_stocks:
+            n = sdb.get_name(s["symbol"])
+            if n and n != s["symbol"]:
+                s["name"] = n
+    except Exception:
+        pass
+    strong_stocks.sort(key=lambda x: x["score"], reverse=True)
+
+    total_value = sum(p.get("value", 0) for p in pos_analysis)
+    total_pnl = sum((p.get("price", p.get("cost", 0)) - p.get("cost", 0)) * p.get("qty", 0) for p in pos_analysis)
+
+    return jsonify({
+        "date": today, "positions": pos_analysis,
+        "total_positions": len(positions), "total_value": round(total_value, 0),
+        "total_pnl": round(total_pnl, 0),
+        "strong_stocks": strong_stocks[:20],
+        "total_scanned": len(strong_stocks),
+        "total_available": len(os.listdir(cache_dir)) if os.path.isdir(cache_dir) else 0,
+        "ai_brief": ""
+    })
 
 @app.route('/api/recommend', methods=['POST'])
+@token_required
 def api_recommend():
+    from flask import g
     """智能推荐: 全策略+全因子 → 最优策略 → 买卖价位"""
     d = request.json; sym = d.get("symbol", "600498")
     try:
@@ -1203,7 +2358,7 @@ def api_recommend():
             for src in [STRATEGIES, PRESET_STRATEGIES]:
                 if key in src: name = src[key].get("name", key); break
             try:
-                s = _make_strategy_instance(key, {}, sym)
+                s = _make_strategy_instance(key, {}, sym, user_id=g.user_id)
                 r = BacktestEngine().run(s, data); m = r["metrics"]
                 try: sh = float(str(m.get("夏普比率",-99)))
                 except: sh = -99
@@ -1587,14 +2742,336 @@ def api_chart_data():
         return jsonify({"error":str(e),"data":[]})
 
 # ═══════════════════════════════════════════════════════════
+
+# ============================================================
+# 游戏模拟交易 API (v5.4 — 100万模拟金)
+# ============================================================
+
+from functools import lru_cache as _lru_cache
+import time as _time
+
+_rank_cache = {"data": None, "time": 0}
+
+
+def clear_rank_cache():
+    """成交后清除排行榜缓存"""
+    _rank_cache["data"] = None
+    _rank_cache["time"] = 0
+
+
+@app.route('/api/game/init', methods=['POST'])
+@token_required
+def api_game_init():
+    """初始化游戏账户 — 100万模拟金"""
+    from flask import g
+    import sqlite3
+    conn = sqlite3.connect("D:/trading_data/users.db")
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute("SELECT * FROM game_accounts WHERE user_id=?", (g.user_id,)).fetchone()
+        if row:
+            return jsonify({"ok": True, "message": "账户已存在", "cash": row["cash"], "initial_capital": row["initial_capital"]})
+        conn.execute("INSERT INTO game_accounts (user_id,cash,initial_capital) VALUES (?,1000000.0,1000000.0)", (g.user_id,))
+        conn.commit()
+        return jsonify({"ok": True, "message": "账户创建成功", "cash": 1000000.0, "initial_capital": 1000000.0})
+    finally:
+        conn.close()
+
+
+@app.route('/api/game/portfolio')
+@token_required
+def api_game_portfolio():
+    """返回用户持仓 + 总资产"""
+    from flask import g
+    import sqlite3, os, pandas as pd
+
+    conn = sqlite3.connect("D:/trading_data/users.db")
+    conn.row_factory = sqlite3.Row
+    try:
+        acct = conn.execute("SELECT * FROM game_accounts WHERE user_id=?", (g.user_id,)).fetchone()
+        if not acct:
+            return jsonify({"error": "请先初始化游戏账户 POST /api/game/init"}), 400
+        cash = acct["cash"]
+
+        orders = conn.execute(
+            "SELECT symbol,name,direction,price,quantity FROM game_orders WHERE user_id=? ORDER BY trade_time",
+            (g.user_id,)).fetchall()
+
+        holdings = {}
+        for o in orders:
+            sym = o["symbol"]
+            if sym not in holdings:
+                holdings[sym] = {"symbol": sym, "name": o["name"], "quantity": 0, "total_cost": 0.0}
+            if o["direction"] == "BUY":
+                holdings[sym]["quantity"] += o["quantity"]
+                holdings[sym]["total_cost"] += o["price"] * o["quantity"]
+            else:
+                holdings[sym]["quantity"] -= o["quantity"]
+                if holdings[sym]["quantity"] > 0:
+                    holdings[sym]["total_cost"] -= o["price"] * o["quantity"]
+                else:
+                    holdings[sym]["total_cost"] = 0.0
+
+        active = {k: v for k, v in holdings.items() if v["quantity"] > 0}
+        cache_dir = "D:/trading_data/cache"
+        market_value = 0.0
+        result_holdings = []
+        for sym, h in active.items():
+            cache_file = os.path.join(cache_dir, f"A股_{sym}_daily.csv")
+            latest_price = round(h["total_cost"] / h["quantity"], 2) if h["quantity"] > 0 else 0
+            if os.path.exists(cache_file):
+                try:
+                    df = pd.read_csv(cache_file)
+                    if len(df) > 0:
+                        latest_price = float(df["close"].iloc[-1])
+                except Exception:
+                    pass
+            mv = latest_price * h["quantity"]
+            market_value += mv
+            result_holdings.append({
+                "symbol": sym, "name": h["name"],
+                "quantity": h["quantity"],
+                "avg_cost": round(h["total_cost"] / h["quantity"], 2) if h["quantity"] > 0 else 0,
+                "latest_price": round(latest_price, 2),
+                "market_value": round(mv, 2),
+                "profit_pct": round((latest_price / (h["total_cost"] / h["quantity"]) - 1) * 100, 2) if h["quantity"] > 0 else 0,
+            })
+
+        total_asset = cash + market_value
+        return jsonify({
+            "cash": round(cash, 2),
+            "market_value": round(market_value, 2),
+            "total_asset": round(total_asset, 2),
+            "initial_capital": acct["initial_capital"],
+            "total_return_pct": round((total_asset / acct["initial_capital"] - 1) * 100, 2),
+            "holdings": result_holdings,
+        })
+    finally:
+        conn.close()
+
+
+@app.route('/api/game/trade', methods=['POST'])
+@token_required
+def api_game_trade():
+    """模拟交易 — T+1 + 仓位限制 + 手续费万2.5最低5元"""
+    from flask import g
+    import sqlite3
+    from datetime import datetime as _dt
+
+    d = request.json or {}
+    symbol = d.get("symbol", "").strip().upper()
+    direction = d.get("direction", "BUY").strip().upper()
+    price = float(d.get("price", 0))
+    quantity = int(d.get("quantity", 0))
+
+    if not symbol or quantity <= 0:
+        return jsonify({"error": "参数错误"}), 400
+    if direction not in ("BUY", "SELL"):
+        return jsonify({"error": "direction 必须是 BUY 或 SELL"}), 400
+
+    conn = sqlite3.connect("D:/trading_data/users.db")
+    conn.row_factory = sqlite3.Row
+    try:
+        acct = conn.execute("SELECT * FROM game_accounts WHERE user_id=?", (g.user_id,)).fetchone()
+        if not acct:
+            conn.close()
+            return jsonify({"error": "请先初始化游戏账户"}), 400
+        cash = acct["cash"]
+
+        # price=0 使用最新收盘价
+        if price == 0:
+            import pandas as pd, os
+            cache_file = f"D:/trading_data/cache/A股_{symbol}_daily.csv"
+            if os.path.exists(cache_file):
+                df = pd.read_csv(cache_file)
+                price = float(df["close"].iloc[-1]) if len(df) > 0 else 0
+            if price == 0:
+                conn.close()
+                return jsonify({"error": "无法获取市价，请手动输入价格"}), 400
+
+        # 计算当前持仓和总资产
+        orders = conn.execute(
+            "SELECT symbol,direction,price,quantity FROM game_orders WHERE user_id=? ORDER BY trade_time",
+            (g.user_id,)).fetchall()
+        current_holdings = {}
+        for o in orders:
+            sym = o["symbol"]
+            current_holdings[sym] = current_holdings.get(sym, 0)
+            current_holdings[sym] += o["quantity"] if o["direction"] == "BUY" else -o["quantity"]
+
+        market_value = 0
+        for sym, qty in current_holdings.items():
+            if qty > 0:
+                market_value += qty * price
+        total_asset = cash + market_value
+
+        # SELL: 检查持仓
+        if direction == "SELL":
+            holding_qty = current_holdings.get(symbol, 0)
+            if holding_qty <= 0:
+                conn.close()
+                return jsonify({"error": f"没有 {symbol} 的持仓"}), 400
+            if quantity > holding_qty:
+                quantity = holding_qty
+
+        # BUY: T+1 + 仓位限制
+        if direction == "BUY":
+            bought_today = conn.execute(
+                "SELECT COUNT(*) as cnt FROM game_orders WHERE user_id=? AND symbol=? AND direction='BUY' AND date(trade_time) = date('now','localtime')",
+                (g.user_id, symbol)).fetchone()["cnt"]
+            if bought_today > 0:
+                conn.close()
+                return jsonify({"error": f"T+1限制：{symbol} 今日已买入，不可再次买入"}), 400
+
+            cost = price * quantity
+            fee = max(cost * 0.00025, 5.0)
+            total_cost = cost + fee
+            if total_asset > 0 and (total_cost / total_asset) > 0.3:
+                conn.close()
+                return jsonify({"error": f"单票仓位不能超过总资产30%（将占用 {round(total_cost/total_asset*100,1)}%）"}), 400
+            if total_cost > cash:
+                conn.close()
+                return jsonify({"error": f"资金不足：需要 {round(total_cost,2)}，可用 {round(cash,2)}"}), 400
+
+        # 手续费万2.5最低5元
+        trade_value = price * quantity
+        fee = max(trade_value * 0.00025, 5.0)
+
+        # 更新资金
+        if direction == "BUY":
+            new_cash = cash - trade_value - fee
+        else:
+            new_cash = cash + trade_value - fee
+
+        conn.execute(
+            "INSERT INTO game_orders (user_id,symbol,name,direction,price,quantity,fee) VALUES (?,?,?,?,?,?,?)",
+            (g.user_id, symbol, d.get("name", symbol), direction, price, quantity, round(fee, 2)))
+        conn.execute("UPDATE game_accounts SET cash=? WHERE user_id=?", (round(new_cash, 2), g.user_id))
+        conn.commit()
+
+        clear_rank_cache()
+        return jsonify({
+            "ok": True, "symbol": symbol, "direction": direction,
+            "price": round(price, 2), "quantity": quantity,
+            "fee": round(fee, 2), "cash_after": round(new_cash, 2),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+
+@app.route('/api/game/reset', methods=['POST'])
+@token_required
+def api_game_reset():
+    """重置模拟账户 — 清除所有持仓订单，恢复100万现金"""
+    from flask import g
+    import sqlite3
+    conn = sqlite3.connect("D:/trading_data/users.db")
+    try:
+        conn.execute("DELETE FROM game_orders WHERE user_id=?", (g.user_id,))
+        conn.execute("UPDATE game_accounts SET cash=1000000.0 WHERE user_id=?", (g.user_id,))
+        conn.commit()
+        clear_rank_cache()
+        return jsonify({"ok": True, "message": "账户已重置", "cash": 1000000.0, "initial_capital": 1000000.0})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route('/api/game/rank')
+def api_game_rank():
+    """全平台总资产排行榜 TOP50 — 5分钟缓存"""
+    import sqlite3, os, pandas as pd, time as _t
+
+    now = _t.time()
+    if _rank_cache["data"] is not None and (now - _rank_cache["time"]) < 300:
+        return jsonify(_rank_cache["data"])
+
+    conn = sqlite3.connect("D:/trading_data/users.db")
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute("""
+            SELECT ga.user_id, u.username, ga.cash, ga.initial_capital
+            FROM game_accounts ga JOIN users u ON ga.user_id = u.id
+            WHERE u.is_active = 1
+        """).fetchall()
+
+        rankings = []
+        cache_dir = "D:/trading_data/cache"
+        for r in rows:
+            orders = conn.execute(
+                "SELECT symbol,direction,price,quantity FROM game_orders WHERE user_id=? ORDER BY trade_time",
+                (r["user_id"],)).fetchall()
+            holdings = {}
+            for o in orders:
+                sym = o["symbol"]
+                holdings[sym] = holdings.get(sym, 0)
+                holdings[sym] += o["quantity"] if o["direction"] == "BUY" else -o["quantity"]
+
+            market_value = 0.0
+            for sym, qty in holdings.items():
+                if qty <= 0:
+                    continue
+                cache_file = os.path.join(cache_dir, f"A股_{sym}_daily.csv")
+                price = 0
+                if os.path.exists(cache_file):
+                    try:
+                        df = pd.read_csv(cache_file)
+                        price = float(df["close"].iloc[-1]) if len(df) > 0 else 0
+                    except Exception:
+                        pass
+                if price == 0:
+                    buys = conn.execute(
+                        "SELECT SUM(price*quantity)/SUM(quantity) as avg FROM game_orders WHERE user_id=? AND symbol=? AND direction='BUY'",
+                        (r["user_id"], sym)).fetchone()
+                    price = buys["avg"] or 0
+                market_value += qty * (price or 0)
+
+            total = r["cash"] + market_value
+            rankings.append({
+                "user_id": r["user_id"], "username": r["username"],
+                "total_asset": round(total, 2), "cash": round(r["cash"], 2),
+                "market_value": round(market_value, 2),
+                "return_pct": round((total / r["initial_capital"] - 1) * 100, 2),
+            })
+
+        rankings.sort(key=lambda x: x["total_asset"], reverse=True)
+        top50 = rankings[:50]
+        for i, rk in enumerate(top50):
+            rk["rank"] = i + 1
+
+        _rank_cache["data"] = {"rankings": top50, "total_players": len(rankings)}
+        _rank_cache["time"] = now
+        return jsonify(_rank_cache["data"])
+    finally:
+        conn.close()
+
+
+
 if __name__ == '__main__':
     import webbrowser, threading
+
+    # 初始化数据库（创建表）
+    from src.database import init_db
+    init_db()
+
     def open_browser():
         time.sleep(1)
         webbrowser.open('http://127.0.0.1:5000')
     threading.Thread(target=open_browser, daemon=True).start()
+
     print("\n  ╔══════════════════════════════════════╗")
-    print("  ║  QuantAxis v5.0  Web 量化平台        ║")
+    print("  ║  QuantAxis v5.5  Web 量化平台        ║")
     print("  ║  http://127.0.0.1:5000              ║")
+    print("  ║  实时行情推送已启用 (10只模拟股票)     ║")
     print("  ╚══════════════════════════════════════╝\n")
+
+    # 使用 SocketIO 启动（支持 WebSocket），降级到 Flask 原生
+    if socketio:
+        socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
+    else:
+        app.run(host='0.0.0.0', port=5000, debug=False)
     app.run(host='0.0.0.0', port=5000, debug=False)

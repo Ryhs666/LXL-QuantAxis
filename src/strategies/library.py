@@ -26,14 +26,22 @@ class BaseStrategy(ABC):
                  use_trend_filter: bool = False,
                  trend_ma_period: int = 200,
                  use_trailing_stop: bool = False,
-                 trailing_atr_mult: float = 3.0):
+                 trailing_atr_mult: float = 3.0,
+                 user_id: int = None,
+                 _strategy_key: str = None,
+                 **kwargs):
         self.config = config or StrategyConfig()
         self.use_trend_filter = use_trend_filter
         self.trend_ma_period = trend_ma_period
         self.use_trailing_stop = use_trailing_stop
         self.trailing_atr_mult = trailing_atr_mult
+        self.user_id = user_id
+        self._strategy_key = _strategy_key or self.__class__.__name__
         self._entry_price = 0
         self._highest_since_entry = 0
+        # 从数据库加载用户自定义参数
+        if user_id is not None:
+            self._load_user_params()
 
     @abstractmethod
     def on_bar(self, i: int, data: pd.DataFrame, portfolio) -> Optional[Signal]:
@@ -49,6 +57,46 @@ class BaseStrategy(ABC):
     def sell_signal(self, data: pd.DataFrame) -> bool:
         """判断是否触发卖出"""
         ...
+
+    # ---- 浮点数安全比较 (陷阱3) ----
+    @staticmethod
+    def fp_gt(a, b, eps=1e-8):
+        return float(a) > float(b) + eps
+    @staticmethod
+    def fp_lt(a, b, eps=1e-8):
+        return float(a) < float(b) - eps
+    @staticmethod
+    def fp_eq(a, b, eps=1e-8):
+        return abs(float(a) - float(b)) <= eps
+
+    # ---- 用户参数加载 (陷阱2) ----
+    def _load_user_params(self):
+        import json
+        strategy_name = getattr(self, "_strategy_key", self.__class__.__name__)
+        current_version = getattr(self, "VERSION", 1)
+        try:
+            from src.database import SessionLocal
+            from src.database.models import StrategyConfig as SC
+            db = SessionLocal()
+            try:
+                row = db.query(SC).filter_by(
+                    user_id=self.user_id, name=strategy_name, is_active=True).first()
+                if not row or not row.config_json:
+                    return
+                db_version = row.strategy_version or 1
+                if db_version < current_version:
+                    row.config_json = "{}"
+                    row.strategy_version = current_version
+                    db.commit()
+                    return
+                params = json.loads(row.config_json)
+                for key, value in params.items():
+                    if hasattr(self, key):
+                        setattr(self, key, value)
+            finally:
+                db.close()
+        except Exception:
+            pass
 
     # ---- 风控增强 (v4.1) ----
 
@@ -138,15 +186,17 @@ class BaseStrategy(ABC):
                column: str = "low") -> pd.Series:
         return data[column].rolling(window=period).min()
 
-    def cross_above(self, s1: pd.Series, s2: pd.Series) -> bool:
+    def cross_above(self, s1: pd.Series, s2: pd.Series, eps: float = 1e-8) -> bool:
         if len(s1) < 2 or len(s2) < 2:
             return False
-        return (s1.iloc[-2] <= s2.iloc[-2] and s1.iloc[-1] > s2.iloc[-1])
+        return (not self.fp_gt(s1.iloc[-2], s2.iloc[-2], eps) and
+                self.fp_gt(s1.iloc[-1], s2.iloc[-1], eps))
 
-    def cross_below(self, s1: pd.Series, s2: pd.Series) -> bool:
+    def cross_below(self, s1: pd.Series, s2: pd.Series, eps: float = 1e-8) -> bool:
         if len(s1) < 2 or len(s2) < 2:
             return False
-        return (s1.iloc[-2] >= s2.iloc[-2] and s1.iloc[-1] < s2.iloc[-1])
+        return (not self.fp_lt(s1.iloc[-2], s2.iloc[-2], eps) and
+                self.fp_lt(s1.iloc[-1], s2.iloc[-1], eps))
 
     @property
     def name(self) -> str:
@@ -158,6 +208,7 @@ class BaseStrategy(ABC):
 # ============================================================
 
 class MACrossStrategy(BaseStrategy):
+    VERSION = 1
     """
     双均线交叉策略
 
@@ -234,6 +285,7 @@ class MACrossStrategy(BaseStrategy):
 # ============================================================
 
 class RSIStrategy(BaseStrategy):
+    VERSION = 1
     """
     RSI 策略
 
@@ -297,6 +349,7 @@ class RSIStrategy(BaseStrategy):
 # ============================================================
 
 class MACDStrategy(BaseStrategy):
+    VERSION = 1
     """
     MACD 金叉死叉策略
 
@@ -357,6 +410,7 @@ class MACDStrategy(BaseStrategy):
 # ============================================================
 
 class BollingerStrategy(BaseStrategy):
+    VERSION = 1
     """
     布林带策略
 
@@ -422,6 +476,7 @@ class BollingerStrategy(BaseStrategy):
 # ============================================================
 
 class TurtleStrategy(BaseStrategy):
+    VERSION = 1
     """
     海龟交易法则（简化版）
 
@@ -497,6 +552,7 @@ class TurtleStrategy(BaseStrategy):
 # ============================================================
 
 class MeanReversionStrategy(BaseStrategy):
+    VERSION = 1
     """
     均值回归策略
 
@@ -566,6 +622,7 @@ class MeanReversionStrategy(BaseStrategy):
 # ============================================================
 
 class MomentumStrategy(BaseStrategy):
+    VERSION = 1
     """
     动量策略
 

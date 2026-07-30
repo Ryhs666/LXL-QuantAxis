@@ -376,7 +376,7 @@ def _system_status():
     print("  ╠══════════════════════════════════════╣")
     print(f"  ║  版本: {config.version:<30}║")
     print(f"  ║  数据目录: {config.data_dir:<27}║")
-    print(f"  ║  初始资金: ¥{config.initial_capital:,}<27”>║")
+    print(f"  ║  初始资金: ¥{config.initial_capital:,<27}║")
     print("  ╠══════════════════════════════════════╣")
     print(f"  ║  📒 交易记录: {repo.count():<4} 笔             ║")
     print(f"  ║  📦 当前持仓: {len(repo.find_open_positions()):<4} 只             ║")
@@ -1048,7 +1048,7 @@ def _ai_menu():
         elif choice == "7":
             from src.ai.engine import llm
             print("\n  ⏳ 测试 AI 连接...")
-            result = lshilm.ask("回复'连接成功！我是你的量化助手。'（20字以内）")
+            result = llm.ask("回复'连接成功！我是你的量化助手。'（20字以内）")
             print(f"\n  {result}")
 
         elif choice == "0":
@@ -1691,6 +1691,8 @@ if __name__ == "__main__":
             print(f"\n  ❌ 生成失败: {e}")
     else:
         main()
+
+
 
 
 

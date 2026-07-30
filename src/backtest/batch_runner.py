@@ -288,9 +288,43 @@ def _adaptive_params(strategy_key: str, symbol: str):
     return {}
 
 
-def _make_strategy_instance(strategy_key: str, params: dict, symbol: str):
-    """根据策略名和参数创建策略实例 — 空params时自动适配"""
+def _sanitize_params(strategy_key: str, params: dict) -> dict:
+    """
+    参数白名单过滤 — 防止注入攻击 (陷阱1)
+    丢弃非法键，强制类型转换，裁剪越界值。
+    """
+    from src.config import PARAM_WHITELIST
+    whitelist = PARAM_WHITELIST.get(strategy_key, {})
+    if not whitelist:
+        return params  # 预设组合策略没有白名单，走其他路径
+    clean = {}
+    for key, value in params.items():
+        if key not in whitelist:
+            continue  # 丢弃非法键
+        spec = whitelist[key]
+        try:
+            if spec["type"] is bool:
+                clean[key] = bool(value)
+            elif spec["type"] is int:
+                v = int(value)
+                lo, hi = spec["range"]
+                clean[key] = max(lo, min(hi, v))
+            elif spec["type"] is float:
+                v = float(value)
+                lo, hi = spec["range"]
+                clean[key] = max(lo, min(hi, v))
+        except (ValueError, TypeError):
+            continue  # 类型转换失败则丢弃
+    return clean
+
+
+def _make_strategy_instance(strategy_key: str, params: dict, symbol: str,
+                           user_id: int = None):
+    """根据策略名和参数创建策略实例 — 带参数白名单校验"""
     from src.config import config as cfg
+
+    # 参数安全过滤 (陷阱1)
+    params = _sanitize_params(strategy_key, params)
 
     # 先试经典策略库
     if strategy_key in STRATEGIES:
@@ -298,8 +332,7 @@ def _make_strategy_instance(strategy_key: str, params: dict, symbol: str):
         # 策略集成特殊处理
         if cls is None and strategy_key == "ensemble":
             from src.strategies.ensemble import create_ensemble, EnsembleStrategy
-            # 返回一个包装了集成的策略对象
-            return EnsembleStrategy(symbol, params.get("threshold", 0.5))
+            return EnsembleStrategy(symbol, params.get("threshold", 0.5), user_id=user_id)
         strategy_cfg = StrategyConfig(
             name=symbol,
             initial_capital=cfg.initial_capital,
@@ -309,7 +342,7 @@ def _make_strategy_instance(strategy_key: str, params: dict, symbol: str):
         # 如果用户没指定参数，使用自适应参数
         if not params:
             params = _adaptive_params(strategy_key, symbol)
-        return cls(config=strategy_cfg, **params)
+        return cls(config=strategy_cfg, user_id=user_id, _strategy_key=strategy_key, **params)
 
     # 再试预设组合策略
     if strategy_key in PRESET_STRATEGIES:

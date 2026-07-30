@@ -201,7 +201,8 @@ class BacktestEngine:
                  # 微观结构 (v6.6)
                  use_impact_cost: bool = True,
                  use_limit_order: bool = False,
-                 impact_coefficient: float = 0.1):
+                 impact_coefficient: float = 0.1,
+                 token_validator=None):  # 陷阱4: Token过期检查回调
         self.initial_capital = initial_capital
         self.commission_rate = commission_rate
         self.slippage = slippage
@@ -216,6 +217,7 @@ class BacktestEngine:
         if use_risk_manager:
             from src.risk.manager import RiskManager
             self.risk = RiskManager(initial_capital=initial_capital)
+        self.token_validator = token_validator  # 陷阱4
         self._risk_signals = []  # 风控产生的信号记录
         self._fill_stats = {"attempted": 0, "filled": 0, "cancelled": 0}
 
@@ -245,6 +247,13 @@ class BacktestEngine:
         data = data.sort_values("date").reset_index(drop=True)
 
         for i in range(len(data)):
+            # 陷阱4: 每100根bar检查一次token是否过期
+            if self.token_validator and i % 100 == 0:
+                try:
+                    self.token_validator()
+                except Exception:
+                    raise  # SessionExpired 直接抛出中断回测
+
             row = data.iloc[i]
             date = str(row["date"])[:10]
 

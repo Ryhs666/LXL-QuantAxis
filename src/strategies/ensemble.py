@@ -279,8 +279,9 @@ def create_ensemble(weights: Dict[str, float] = None,
 class EnsembleStrategy:
     """集成策略适配器 — 兼容 BacktestEngine"""
 
-    def __init__(self, symbol: str, threshold: float = 0.5):
+    def __init__(self, symbol: str, threshold: float = 0.5, user_id: int = None):
         self.symbol = symbol
+        self.user_id = user_id
         self.ensemble = create_ensemble(threshold=threshold, dynamic=True)
         self.config = type('obj', (object,), {'name': symbol})()
 

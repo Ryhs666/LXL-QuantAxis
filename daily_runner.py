@@ -54,9 +54,13 @@ def capture_output(func, *args, **kwargs):
     return result, buf.getvalue()
 
 
-def quick_diagnosis(symbol, market, name="", full=False):
+def quick_diagnosis(symbol, market, name="", full=False, user_id=None):
     """
     快速诊断单只股票
+
+    参数:
+        user_id: 用户ID，如果提供则将结果写入 user_trade_logs
+
     返回: dict with score, level, price, data_rows, data_fresh
     """
     from src.backtest.data_feed import get_data, download_watchlist, get_data_summary
@@ -65,7 +69,8 @@ def quick_diagnosis(symbol, market, name="", full=False):
     today = datetime.now().strftime("%Y-%m-%d")
     result = {"symbol": symbol, "name": name, "market": market,
               "error": None, "score": 50, "level": "N/A",
-              "price": 0, "data_rows": 0, "data_fresh": False}
+              "price": 0, "data_rows": 0, "data_fresh": False,
+              "user_id": user_id}
 
     # 1. 检查并刷新数据
     try:
@@ -247,7 +252,7 @@ def _quick_entry_score(current_factors):
     return {"score": score, "level": level, "summary": summary}
 
 
-def run_daily_scan(symbols=None, full=False):
+def run_daily_scan(symbols=None, full=False, user_id=None):
     """每日扫描主函数"""
     from src.config import config
 
@@ -261,6 +266,8 @@ def run_daily_scan(symbols=None, full=False):
     report_lines.append(f"═" * 62)
     report_lines.append(f"  📊 QuantAxis 每日诊断快报")
     report_lines.append(f"  {now.strftime('%Y-%m-%d %H:%M')}")
+    if user_id:
+        report_lines.append(f"  用户ID: {user_id}")
     report_lines.append(f"═" * 62)
     report_lines.append(f"  扫描标的: {len(watchlist)} 只")
     report_lines.append(f"  模式: {'完整诊断' if full else '快速扫描(因子+评分)'}")
@@ -272,7 +279,7 @@ def run_daily_scan(symbols=None, full=False):
         name = item.get("name", sym)
         market = item.get("market", "A股")
         print(f"  [{i}/{len(watchlist)}] {sym} {name} ...", end=" ", flush=True)
-        r = quick_diagnosis(sym, market, name, full=full)
+        r = quick_diagnosis(sym, market, name, full=full, user_id=user_id)
         results.append(r)
         if r["error"]:
             print(f"❌ {r['error']}")
@@ -327,14 +334,81 @@ def run_daily_scan(symbols=None, full=False):
         f.write(report)
     print(f"  ✅ 报告已保存: {filepath}")
 
+    # 写入 user_trade_logs 表（多用户隔离）
+    if user_id:
+        _save_trade_logs(user_id, results)
+
     return results
+
+
+def _save_trade_logs(user_id: int, results: list):
+    """将扫描结果写入 user_trade_logs 表"""
+    from src.database import SessionLocal
+    from src.database.models import UserTradeLog
+    from datetime import datetime, timezone
+
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        count = 0
+        for r in results:
+            if r.get("error"):
+                continue
+            score = r.get("score", 50)
+            if score >= 60:
+                action = "买入"
+            elif score >= 40:
+                action = "持有"
+            else:
+                action = "卖出"
+
+            log = UserTradeLog(
+                user_id=user_id,
+                symbol=r.get("symbol", ""),
+                name=r.get("name", ""),
+                market=r.get("market", "A股"),
+                action=action,
+                score=score,
+                price=r.get("price", 0),
+                reason=r.get("signals_summary", r.get("level", "")),
+                created_at=now,
+            )
+            db.add(log)
+            count += 1
+        db.commit()
+        print(f"  ✅ 已写入 {count} 条交易建议到 user_trade_logs (用户 {user_id})")
+    except Exception as e:
+        db.rollback()
+        print(f"  ⚠️ 写入 trade_logs 失败: {e}")
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
     full_mode = "--full" in sys.argv
-    symbols = [a for a in sys.argv[1:] if not a.startswith("--")]
+
+    # 解析 --user_id（必填）
+    user_id = None
+    for i, arg in enumerate(sys.argv):
+        if arg == "--user_id" and i + 1 < len(sys.argv):
+            try:
+                user_id = int(sys.argv[i + 1])
+            except ValueError:
+                print("❌ --user_id 必须是整数")
+                sys.exit(1)
+            break
+
+    if user_id is None:
+        print("❌ 缺少 --user_id 参数。用法: python daily_runner.py --user_id <ID> [--full] [股票代码...]")
+        sys.exit(1)
+
+    # 初始化数据库表（确保 user_trade_logs 存在）
+    from src.database import init_db
+    init_db()
+
+    symbols = [a for a in sys.argv[1:] if not a.startswith("--") and a != str(user_id)]
 
     if symbols:
-        results = run_daily_scan(symbols, full=full_mode)
+        results = run_daily_scan(symbols, full=full_mode, user_id=user_id)
     else:
-        results = run_daily_scan(full=full_mode)
+        results = run_daily_scan(full=full_mode, user_id=user_id)

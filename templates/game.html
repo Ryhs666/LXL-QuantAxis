@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LXL·QuantAxis — 模拟交易大厅</title>
+<style>
+:root{
+--bg:#0a0e17;--bg2:#111827;--bg3:#1a2332;--border:#1f2a3a;
+--ac:#00d4ff;--gr:#00ff88;--rd:#ff4466;--yw:#f0c040;--pr:#a78bfa;
+--t1:#e6edf3;--t2:#8b949e;--t3:#475569;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+background:var(--bg);color:var(--t1);min-height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+height:48px;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.topbar .logo{font-size:15px;font-weight:700}
+.topbar .logo span{color:var(--ac)}
+.topbar .nav{display:flex;gap:16px;align-items:center;font-size:12px}
+.topbar .nav a{color:var(--t2);text-decoration:none;transition:color .2s}
+.topbar .nav a:hover{color:var(--t1)}
+.topbar .nav .active{color:var(--ac)}
+.topbar .user{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--t2)}
+.topbar .user b{color:var(--ac)}
+.logout{cursor:pointer;color:var(--t3);font-size:11px;transition:color .2s}
+.logout:hover{color:var(--rd)}
+.nav-btn{padding:6px 14px;border-radius:6px;font-size:11px;color:var(--t2);cursor:pointer;text-decoration:none;transition:all .15s;white-space:nowrap}
+.nav-btn:hover{color:var(--t1);background:var(--bg3)}
+.nav-btn.active{color:var(--ac);background:rgba(0,212,255,.1);font-weight:600}
+
+/* 资产卡 */
+.asset-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 24px;max-width:1400px;margin:0 auto}
+.asset-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 22px;position:relative;overflow:hidden}
+.asset-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.asset-card.ac1::before{background:var(--ac)}.asset-card.ac2::before{background:var(--gr)}
+.asset-card.ac3::before{background:var(--yw)}.asset-card.ac4::before{background:var(--pr)}
+.asset-card .alabel{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.asset-card .aval{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.asset-card .asub{font-size:10px;color:var(--t3);margin-top:2px}
+
+/* 三栏 */
+.layout{display:grid;grid-template-columns:320px 1fr 300px;gap:16px;padding:0 24px 24px;max-width:1400px;margin:0 auto}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px}
+.panel h3{font-size:13px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.form-group input,.form-group select{width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);
+border-radius:5px;color:var(--t1);font-size:12px;outline:none;box-sizing:border-box}
+.form-group select:focus,.form-group input:focus{border-color:var(--ac)}
+
+.btn{display:inline-block;padding:8px 18px;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-ac{background:var(--ac);color:#000;width:100%}.btn-ac:hover:not(:disabled){box-shadow:0 0 20px rgba(0,212,255,.3)}
+.btn-ac:disabled{opacity:.5;cursor:not-allowed}
+.btn-o{background:transparent;border:1px solid var(--border);color:var(--t2);font-size:10px;padding:4px 10px}
+.btn-o:hover{border-color:var(--ac);color:var(--t1)}
+
+.msg{font-size:11px;margin-top:10px;min-height:18px;line-height:1.5}
+.msg.err{color:var(--rd)}.msg.ok{color:var(--gr)}
+
+/* 持仓表 */
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;padding:7px 10px;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border)}
+td{padding:7px 10px;border-bottom:1px solid var(--border);color:var(--t2)}
+tr:hover td{background:rgba(0,212,255,.02)}
+.up{color:var(--rd)}.down{color:var(--gr)}
+
+/* 排行 */
+.rank-item{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px;border-radius:4px;transition:background .1s}
+.rank-item:hover{background:var(--bg3)}
+.rank-item.me{background:rgba(0,212,255,.08);border-left:2px solid var(--ac)}
+.rank-num{width:24px;font-weight:700;text-align:center;flex-shrink:0}
+.rank-num.top{color:var(--yw)}
+.rank-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px}
+.rank-asset{font-weight:600;flex-shrink:0}
+
+.empty{text-align:center;padding:40px 20px;color:var(--t3);font-size:12px}
+.auto-tag{font-size:9px;color:var(--t3);float:right}
+
+@media(max-width:1100px){.layout{grid-template-columns:1fr}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+<div class="logo">LXL<span>·</span>QuantAxis <span style="font-size:10px;color:var(--t3);font-weight:400;margin-left:4px">模拟交易</span></div>
+<div class="nav">
+<a href="/studio" class="nav-btn">📊 策略</a>
+<a href="/game" class="nav-btn active">🎮 交易</a>
+<a href="/classic" class="nav-btn">📋 经典</a>
+<a href="/admin" class="nav-btn" id="adminGameLink" style="display:none">⚙️ 管理</a>
+</div>
+<div class="user"><span class="logout" onclick="resetGame()" style="margin-right:12px;color:var(--rd)">🔄 重置账户</span>👤 <b id="uname">--</b><span class="logout" onclick="doLogout()">退出</span></div>
+</div>
+
+
+<!-- 实时行情条 -->
+<div style="max-width:1400px;margin:0 auto;padding:0 24px 8px">
+<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;display:flex;gap:20px;overflow-x:auto;font-size:11px">
+<span style="color:var(--t3);flex-shrink:0;font-weight:600">⚡ 实时行情</span> <span id="wsStatusBar" style="font-size:10px">● 连接中</span>
+<span id="tickerBar" style="display:flex;gap:20px;white-space:nowrap">WebSocket 连接中...</span>
+</div>
+</div>
+
+<!-- 资产卡 -->
+<div class="asset-bar">
+<div class="asset-card ac1"><div class="alabel">可用现金</div><div class="aval" id="aCash" style="color:var(--ac)">--</div><div class="asub">Cash</div></div>
+<div class="asset-card ac2"><div class="alabel">持仓市值</div><div class="aval" id="aMkt" style="color:var(--gr)">--</div><div class="asub">Market Value</div></div>
+<div class="asset-card ac3"><div class="alabel">总资产</div><div class="aval" id="aTotal" style="color:var(--yw)">--</div><div class="asub" id="aReturn">Total Asset</div></div>
+<div class="asset-card ac4"><div class="alabel">初始资金</div><div class="aval" id="aInit" style="color:var(--pr)">--</div><div class="asub">1,000,000</div></div>
+</div>
+
+<!-- 三栏 -->
+<div class="layout">
+<!-- 左: 交易面板 -->
+<div class="panel">
+<h3 style="color:var(--ac)">⚡ 下单</h3>
+<div class="form-group"><label>股票代码</label><input type="text" id="tSymbol" placeholder="如 000858" onkeypress="if(event.key==='Enter')doTrade()"></div>
+<div class="form-group"><label>方向</label><select id="tDir"><option value="BUY">买入 BUY</option><option value="SELL">卖出 SELL</option></select></div>
+<div class="form-group"><label>数量 (股)</label><input type="number" id="tQty" placeholder="100的整数倍" min="100" step="100" value="100"></div>
+<div class="form-group"><label>价格 (0=市价)</label><input type="number" id="tPrice" value="0" step="0.01"></div>
+<button class="btn btn-ac" id="tradeBtn" onclick="doTrade()">确认下单</button>
+<div class="msg" id="tradeMsg"></div>
+<div style="margin-top:12px;font-size:10px;color:var(--t3);line-height:1.6">
+规则：T+1 | 单票&le;30% | 万2.5最低5元<br>
+市价单(price=0)自动取最新收盘价
+</div>
+</div>
+
+<!-- 中: 持仓 -->
+<div class="panel">
+<h3 style="color:var(--gr)">💼 我的持仓 <span class="auto-tag">30s自动刷新</span></h3>
+<button class="btn btn-o" onclick="loadPortfolio()" style="margin-bottom:10px">🔄 刷新</button>
+<div id="holdings"><div class="empty">加载中...</div></div>
+</div>
+
+<!-- 右: 排行榜 -->
+<div class="panel">
+<h3 style="color:var(--yw)">🏆 财富榜 <span class="auto-tag">30s自动刷新</span></h3>
+<div id="rankList"><div class="empty">加载中...</div></div>
+</div>
+</div>
+
+<script>
+const TOKEN=localStorage.getItem('qa_token');
+const USER=JSON.parse(localStorage.getItem('qa_user')||'{}');
+if(!TOKEN){window.location.href='/login';}
+document.getElementById('uname').textContent=USER.username||'--';
+if(USER.role==='admin'){var al=document.getElementById('adminGameLink');if(al)al.style.display='inline';}
+function doLogout(){localStorage.clear();window.location.href='/login';}
+async function resetGame(){if(!confirm('确认重置账户？所有持仓和交易记录将被清除，现金恢复为100万。'))return;try{await api('/api/game/reset',{});loadPortfolio();loadRank();}catch(e){alert(e.message);}}
+
+async function api(url,data=null){
+const h={'Content-Type':'application/json','Authorization':'Bearer '+TOKEN};
+const o=data?{method:'POST',headers:h,body:JSON.stringify(data)}:{method:'GET',headers:h};
+const r=await fetch(url,o);
+if(r.status===401){localStorage.clear();window.location.href='/login';return;}
+if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||d.msg||'请求失败');}
+return r.json();
+}
+
+// === 资产与持仓 ===
+async function loadPortfolio(){
+try{
+const d=await api('/api/game/portfolio');
+const cash=d.cash,mkt=d.market_value,total=d.total_asset,ret=d.total_return_pct;
+document.getElementById('aCash').textContent='¥'+cash.toLocaleString();
+document.getElementById('aMkt').textContent='¥'+mkt.toLocaleString();
+document.getElementById('aTotal').textContent='¥'+total.toLocaleString();
+document.getElementById('aTotal').style.color=ret>=0?'var(--rd)':'var(--gr)';
+document.getElementById('aInit').textContent='¥'+(d.initial_capital||1000000).toLocaleString();
+document.getElementById('aReturn').textContent='收益率 '+(ret>=0?'+':'')+ret+'%';
+document.getElementById('aReturn').style.color=ret>=0?'var(--rd)':'var(--gr)';
+if(!d.holdings||!d.holdings.length){
+document.getElementById('holdings').innerHTML='<div class="empty">暂无持仓<br><span style="font-size:10px;color:var(--t3)">买入股票后这里会显示</span></div>';return;
+}
+let h='<table><thead><tr><th>代码</th><th>名称</th><th>数量</th><th>成本</th><th>现价</th><th>市值</th><th>盈亏%</th></tr></thead><tbody>';
+d.holdings.forEach(p=>{
+const cls=p.profit_pct>=0?'up':'down';
+h+=`<tr><td style="color:var(--ac);font-weight:600">${p.symbol}</td><td>${p.name||'-'}</td><td>${p.quantity}</td><td>¥${p.avg_cost}</td><td>¥${p.latest_price}</td><td>¥${p.market_value.toLocaleString()}</td><td class="${cls}">${p.profit_pct>=0?'+':''}${p.profit_pct}%</td></tr>`;
+});
+h+='</tbody></table>';
+document.getElementById('holdings').innerHTML=h;
+}catch(e){}
+}
+
+// === 下单 ===
+async function doTrade(){
+const sym=document.getElementById('tSymbol').value.trim().toUpperCase();
+const dir=document.getElementById('tDir').value;
+const qty=parseInt(document.getElementById('tQty').value)||0;
+const price=parseFloat(document.getElementById('tPrice').value)||0;
+const btn=document.getElementById('tradeBtn');
+const msg=document.getElementById('tradeMsg');
+if(!sym||qty<=0){msg.innerHTML='<span class="msg err">请填写股票代码和数量</span>';return}
+btn.disabled=true;btn.textContent='交易中...';msg.textContent='';
+try{
+const r=await api('/api/game/trade',{symbol:sym,direction:dir,price:price,quantity:qty});
+if(r.error){msg.innerHTML='<span class="msg err">'+r.error+'</span>'}
+else{msg.innerHTML='<span class="msg ok">'+r.direction+' '+r.symbol+' '+r.quantity+'股 @¥'+r.price+'<br>手续费 ¥'+r.fee+' | 剩余现金 ¥'+r.cash_after.toLocaleString()+'</span>';
+document.getElementById('tSymbol').value='';document.getElementById('tQty').value='100';
+loadPortfolio();loadRank();}
+}catch(e){msg.innerHTML='<span class="msg err">'+e.message+'</span>'}
+finally{btn.disabled=false;btn.textContent='确认下单';}
+}
+
+// === 排行榜 ===
+async function loadRank(){
+try{
+const d=await api('/api/game/rank');
+let h='';
+d.rankings.slice(0,15).forEach(r=>{
+const isMe=r.user_id===USER.id;
+const cls=isMe?'rank-item me':'rank-item';
+const topNum=r.rank<=3?'rank-num top':'rank-num';
+h+=`<div class="${cls}"><span class="${topNum}">${r.rank<=3?['🥇','🥈','🥉'][r.rank-1]:r.rank}</span>
+<span class="rank-name">${r.username}${isMe?' (我)':''}</span>
+<span class="rank-asset" style="color:var(--yw)">¥${r.total_asset.toLocaleString()}</span></div>`;
+});
+document.getElementById('rankList').innerHTML=h||'<div class="empty">暂无数据</div>';
+}catch(e){}
+}
+
+
+// SocketIO 实时行情推送
+let tickerEl = null;
+let tickerItems = {};
+const TICKER_SYMBOLS = ["000001","000002","600000","600036","601318","000858","002415","300750","600519","000333"];
+
+let _lastPriceUpdate=0;
+let _currentPrices={};  // 全局价格缓存: {symbol: price}
+let _gameSock=null;
+
+function initTicker(){
+tickerEl = document.getElementById("tickerBar");
+if(typeof io === "undefined"){
+tickerEl.innerHTML = '<span style="color:var(--rd)">WebSocket 不可用（需安装 flask-socketio）</span>';
+return;
+}
+const socket = io();
+
+socket.on("price_update", function(d){
+if(!tickerEl) return;
+// Update individual ticker item
+const el = document.getElementById("t_" + d.symbol);
+if(el){
+const sign = d.change_pct >= 0 ? "+" : "";
+const cls = d.change_pct >= 0 ? "up" : "down";
+el.innerHTML = "<span style="color:var(--ac);font-weight:600">" + d.symbol + "</span> " +
+"<span class="" + cls + "" style="font-weight:600">" + d.price.toFixed(2) + "</span> " +
+"<span style="font-size:9px;color:var(--t3)">" + sign + d.change_pct.toFixed(2) + "%</span>";
+}
+});
+
+socket.on("connect", function(){
+// Build ticker items on first connect
+if(tickerEl.innerHTML.includes("连接中") || tickerEl.innerHTML.includes("就绪")){
+var h = "";
+TICKER_SYMBOLS.forEach(function(s){
+h += "<span id="t_" + s + "" style="color:var(--t2)">" + s + " --</span>";
+});
+tickerEl.innerHTML = h;
+}
+});
+
+socket.on("disconnect", function(){
+tickerEl.innerHTML = '<span style="color:var(--rd)">WebSocket 断开</span>';
+});
+}
+initTicker();
+
+// === Init ===
+(async function init(){
+try{await api('/api/game/init',{});}catch(e){}
+loadPortfolio();loadRank();
+})();
+// 30秒自动刷新
+setInterval(()=>{loadPortfolio();loadRank();},30000);
+</script>
+<div id="wsToast" style="display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(255,68,102,.9);color:#fff;text-align:center;padding:6px;font-size:11px;z-index:9999">实时行情连接已断开，尝试重连...</div>
+</body>
+</html>

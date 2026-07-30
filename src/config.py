@@ -66,6 +66,64 @@ DEFAULTS = {
     # ---- 数据源 ----
     "primary_market": "A股",
     "fallback_to_akshare": True,
+
+    # ---- 实时行情 ----
+    "realtime_data_source": "tencent",     # tencent / eastmoney / akshare / simulator
+    "realtime_symbols": [                  # 实时推送股票池
+        "000001", "000002", "600000", "600036", "601318",
+        "000858", "002415", "300750", "600519", "000333",
+    ],
+    "realtime_poll_interval": 3,           # 拉取间隔(秒)
+    "realtime_retry_interval": 10,         # 断线重连间隔(秒)
+}
+
+# ============================================================
+# 参数白名单 — 防止参数注入攻击 (陷阱1)
+# 每个策略只允许这些参数名，类型和范围在此定义
+# ============================================================
+PARAM_WHITELIST = {
+    "ma_cross": {
+        "fast_period":  {"type": int,   "range": (1, 100)},
+        "slow_period":  {"type": int,   "range": (2, 200)},
+        "vol_confirm":  {"type": bool,  "range": None},
+        "vol_ratio":    {"type": float, "range": (0.5, 10.0)},
+    },
+    "rsi": {
+        "rsi_period":   {"type": int,   "range": (2, 100)},
+        "oversold":     {"type": float, "range": (5.0, 50.0)},
+        "overbought":   {"type": float, "range": (50.0, 95.0)},
+        "require_recovery": {"type": bool, "range": None},
+    },
+    "macd": {
+        "fast":         {"type": int,   "range": (2, 50)},
+        "slow":         {"type": int,   "range": (5, 100)},
+        "signal":       {"type": int,   "range": (2, 50)},
+        "filter_zero":  {"type": bool,  "range": None},
+    },
+    "bollinger": {
+        "period":       {"type": int,   "range": (2, 100)},
+        "std_dev":      {"type": float, "range": (0.5, 5.0)},
+        "buy_on_lower": {"type": bool,  "range": None},
+        "sell_on_middle": {"type": bool, "range": None},
+    },
+    "turtle": {
+        "entry_period": {"type": int,   "range": (5, 100)},
+        "exit_period":  {"type": int,   "range": (2, 50)},
+        "atr_period":   {"type": int,   "range": (5, 50)},
+        "atr_stop":     {"type": float, "range": (0.5, 5.0)},
+    },
+    "mean_reversion": {
+        "ma_period":    {"type": int,   "range": (5, 100)},
+        "deviation_pct": {"type": float, "range": (0.5, 20.0)},
+        "rsi_period":   {"type": int,   "range": (2, 50)},
+        "rsi_extreme":  {"type": float, "range": (10.0, 45.0)},
+    },
+    "momentum": {
+        "breakout_period": {"type": int, "range": (5, 100)},
+        "exit_period":    {"type": int,  "range": (2, 50)},
+        "volume_confirm": {"type": bool, "range": None},
+        "trend_filter":   {"type": bool, "range": None},
+    },
 }
 
 _config = None

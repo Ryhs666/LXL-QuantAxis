@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LXL·QuantAxis — 管理员控制台</title>
+<style>
+:root{
+--bg:#0a0e17;--bg2:#111827;--bg3:#1a2332;--border:#1f2a3a;
+--ac:#00d4ff;--gr:#00ff88;--rd:#ff4466;--yw:#f0c040;--pr:#a78bfa;
+--t1:#e6edf3;--t2:#8b949e;--t3:#475569;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+background:var(--bg);color:var(--t1);min-height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+height:52px;background:var(--bg2);border-bottom:1px solid var(--border)}
+.topbar .logo{font-size:16px;font-weight:700}
+.topbar .logo span{color:var(--ac)}
+.topbar .badge{font-size:10px;background:var(--yw);color:#000;padding:2px 8px;border-radius:10px;font-weight:700}
+.topbar .user{font-size:12px;color:var(--t2)}
+.topbar .user b{color:var(--ac)}
+.topbar a{color:var(--t3);text-decoration:none;font-size:11px;margin-left:12px}
+.topbar a:hover{color:var(--t1)}
+.content{padding:24px;max-width:1400px;margin:0 auto}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:20px 24px}
+.stat .slabel{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.stat .sval{font-size:28px;font-weight:700}
+.stat .ssub{font-size:10px;color:var(--t3);margin-top:4px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:24px;margin-bottom:20px}
+.card h3{font-size:14px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card h3 .dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:8px 12px;font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border)}
+td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--t2)}
+tr:hover td{background:rgba(0,212,255,.02)}
+.btn{display:inline-block;padding:5px 12px;border-radius:4px;font-size:10px;cursor:pointer;border:none;transition:all .2s}
+.btn-sm{padding:3px 8px;font-size:10px}
+.btn-ac{background:var(--ac);color:#000}
+.btn-rd{background:transparent;border:1px solid var(--rd);color:var(--rd)}
+.btn-rd:hover{background:var(--rd);color:#fff}
+.btn-o{background:transparent;border:1px solid var(--border);color:var(--t2)}
+.btn-o:hover{border-color:var(--ac);color:var(--t1)}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px}
+.tag-admin{background:rgba(240,192,64,.15);color:var(--yw)}
+.tag-user{background:rgba(0,212,255,.1);color:var(--ac)}
+.tag-active{background:rgba(0,255,136,.1);color:var(--gr)}
+.tag-disabled{background:rgba(255,68,102,.1);color:var(--rd)}
+.detail-panel{display:none;margin-top:16px;padding:16px;background:var(--bg);border-radius:8px}
+.detail-panel.show{display:block}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.detail-col h4{font-size:11px;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.empty{text-align:center;padding:40px;color:var(--t3);font-size:12px}
+</style>
+</head>
+<body>
+<div class="topbar">
+<div class="logo">LXL<span>·</span>QuantAxis <span class="badge">管理员</span></div>
+<div class="user">
+<a href="/studio">工作台</a>
+<a href="/classic">经典面板</a>
+👤 <b id="uname">--</b>
+<a href="#" onclick="doLogout()">退出</a>
+</div>
+</div>
+<div class="content">
+<div class="stats">
+<div class="stat"><div class="slabel">总用户数</div><div class="sval" style="color:var(--ac)" id="sUsers">--</div><div class="ssub">已注册账户</div></div>
+<div class="stat"><div class="slabel">活跃用户</div><div class="sval" style="color:var(--gr)" id="sActive">--</div><div class="ssub">今日活跃</div></div>
+<div class="stat"><div class="slabel">管理员</div><div class="sval" style="color:var(--yw)" id="sAdmins">--</div><div class="ssub">拥有全部权限</div></div>
+<div class="stat"><div class="slabel">总持仓数</div><div class="sval" style="color:var(--pr)" id="sPortfolios">--</div><div class="ssub">所有用户持仓</div></div>
+</div>
+<div class="card">
+<h3><span class="dot" style="background:var(--ac)"></span>用户管理</h3>
+<div id="userTable">加载中...</div>
+<div class="detail-panel" id="detailPanel"></div>
+</div>
+</div>
+<script>
+const TOKEN=localStorage.getItem('qa_token');
+const USER=JSON.parse(localStorage.getItem('qa_user')||'{}');
+if(!TOKEN||USER.role!=='admin'){document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--rd);font-size:16px">⛔ 需要管理员权限 <a href="/login" style="color:var(--ac);margin-left:12px">去登录</a></div>';}
+document.getElementById('uname').textContent=USER.username||'--';
+function doLogout(){localStorage.clear();window.location.href='/login';}
+
+async function api(url,data=null){
+const headers={'Content-Type':'application/json','Authorization':'Bearer '+TOKEN};
+const opts=data?{method:'POST',headers,body:JSON.stringify(data)}:{method:'GET',headers};
+const r=await fetch(url,opts);
+if(r.status===401){localStorage.clear();window.location.href='/login';}
+return r.json();
+}
+
+async function loadAll(){
+try{
+const r=await api('/api/admin/users');
+const users=r.users||[];
+document.getElementById('sUsers').textContent=r.total;
+document.getElementById('sActive').textContent=users.filter(u=>u.is_active).length;
+document.getElementById('sAdmins').textContent=users.filter(u=>u.role==='admin').length;
+let totalPos=0;users.forEach(u=>totalPos+=u.portfolio_count||0);
+document.getElementById('sPortfolios').textContent=totalPos;
+
+let h='<table><thead><tr><th>ID</th><th>用户名</th><th>角色</th><th>邮箱</th><th>状态</th><th>持仓</th><th>注册时间</th><th>最后登录</th><th>操作</th></tr></thead><tbody>';
+users.forEach(u=>{
+const roleTag=u.role==='admin'?'<span class="tag tag-admin">管理员</span>':'<span class="tag tag-user">用户</span>';
+const statusTag=u.is_active?'<span class="tag tag-active">激活</span>':'<span class="tag tag-disabled">禁用</span>';
+h+=`<tr>
+<td>${u.id}</td><td style="color:var(--ac);font-weight:600">${u.username}</td><td>${roleTag}</td>
+<td style="color:var(--t3);font-size:11px">${u.email||'-'}</td><td>${statusTag}</td>
+<td>${u.portfolio_count||0}</td>
+<td style="font-size:10px;color:var(--t3)">${(u.created_at||'').slice(0,10)}</td>
+<td style="font-size:10px;color:var(--t3)">${(u.last_login||'').slice(0,10)}</td>
+<td>
+<button class="btn btn-o btn-sm" onclick="viewDetail(${u.id},'${u.username}')">详情</button>
+${u.username!==USER.username?`<button class="btn btn-rd btn-sm" onclick="toggleUser(${u.id})" style="margin-left:4px">${u.is_active?'禁用':'启用'}</button>`:''}
+</td></tr>`;
+});
+h+='</tbody></table>';
+document.getElementById('userTable').innerHTML=h;
+}catch(e){document.getElementById('userTable').innerHTML=`<div class="empty">加载失败: ${e.message}</div>`}
+}
+
+async function viewDetail(uid,uname){
+const panel=document.getElementById('detailPanel');
+panel.innerHTML='<div class="empty">加载中...</div>';panel.classList.add('show');
+try{
+const r=await api('/api/admin/user/'+uid);
+let h=`<h4 style="margin-bottom:12px">📋 ${uname} 详细数据</h4><div class="detail-grid">`;
+// Portfolio
+h+='<div class="detail-col"><h4>📦 持仓</h4>';
+if(r.portfolios&&r.portfolios.length){
+h+='<table><thead><tr><th>代码</th><th>数量</th><th>成本</th></tr></thead><tbody>';
+r.portfolios.forEach(p=>{h+=`<tr><td style="color:var(--ac)">${p.symbol}</td><td>${p.quantity}</td><td>¥${p.avg_cost}</td></tr>`;});
+h+='</tbody></table>';}else{h+='<div class="empty">无</div>';}
+h+='</div>';
+// Strategies
+h+='<div class="detail-col"><h4>🧪 策略配置</h4>';
+if(r.strategies&&r.strategies.length){
+h+='<table><thead><tr><th>名称</th><th>状态</th></tr></thead><tbody>';
+r.strategies.forEach(s=>{h+=`<tr><td>${s.name}</td><td>${s.is_active?'<span class="tag tag-active">启用</span>':'<span class="tag tag-disabled">停用</span>'}</td></tr>`;});
+h+='</tbody></table>';}else{h+='<div class="empty">无</div>';}
+h+='</div>';
+// Trade Logs
+h+='<div class="detail-col"><h4>📝 交易建议</h4>';
+if(r.trade_logs&&r.trade_logs.length){
+h+='<table><thead><tr><th>时间</th><th>代码</th><th>操作</th></tr></thead><tbody>';
+r.trade_logs.slice(0,10).forEach(t=>{h+=`<tr><td style="font-size:10px">${(t.created_at||'').slice(0,16)}</td><td style="color:var(--ac)">${t.symbol}</td><td>${t.action}</td></tr>`;});
+h+='</tbody></table>';}else{h+='<div class="empty">无</div>';}
+h+='</div></div>';
+panel.innerHTML=h;
+}catch(e){panel.innerHTML=`<div class="empty">失败: ${e.message}</div>`}
+}
+
+async function toggleUser(uid){
+if(!confirm('确认切换该用户状态？'))return;
+try{await fetch('/api/admin/user/'+uid,{method:'DELETE',headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN}});loadAll();}catch(e){alert(e.message);}
+}
+
+loadAll();
+</script>
+</body>
+</html>
