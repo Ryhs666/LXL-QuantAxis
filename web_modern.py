@@ -308,24 +308,26 @@ metrics = MetricsRegistry()
 
 
 def stall_monitor(timeout_minutes: int = 30):
-    """后台停滞监控线程"""
+    """后台停滞监控线程 — 仅写日志，不弹窗"""
     while True:
         time.sleep(60)  # 每分钟检查一次
         status = metrics.check_stall(timeout_minutes)
         if status["stalled"]:
-            from src.audit.TradeAudit import audit
-            audit.send_alert(
-                "⚠️ 策略停滞告警",
-                f"超过{timeout_minutes}分钟无交易信号或数据更新\n"
-                f"最后信号: {status['since_last_signal']}\n"
-                f"最后数据: {status['since_last_data']}\n"
-                f"可能原因: 逻辑死锁 / 数据断流 / 网络异常"
+            import logging
+            _log = logging.getLogger("quantaxis.stall")
+            _log.warning(
+                "策略停滞: 超过%s分钟无交易信号或数据更新 | "
+                "最后信号: %s | 最后数据: %s",
+                timeout_minutes,
+                status["since_last_signal"],
+                status["since_last_data"],
             )
 
 
-# 启动监控线程
-_stall_thread = threading.Thread(target=stall_monitor, args=(30,), daemon=True)
-_stall_thread.start()
+# 停滞监控线程（默认禁用 — 设 True 以启用）
+_stall_thread = None
+# _stall_thread = threading.Thread(target=stall_monitor, args=(30,), daemon=True)
+# _stall_thread.start()
 
 
 # ═══════════════════════════════════════════════════════════
