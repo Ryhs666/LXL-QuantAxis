@@ -6,13 +6,6 @@ import sys, os, json, io, threading, time, random
 sys.path.insert(0, os.path.dirname(__file__))
 os.chdir(os.path.dirname(__file__))
 
-# eventlet monkey_patch — 必须在所有 import 之前
-try:
-    import eventlet
-    eventlet.monkey_patch()
-except ImportError:
-    pass
-
 from flask import Flask, request, jsonify, render_template, redirect
 from datetime import datetime, timedelta
 from src.auth import token_required, admin_required
@@ -24,7 +17,12 @@ app = Flask(__name__)
 # ═══════════════════════════════════════════════════════════
 try:
     from flask_socketio import SocketIO
-    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+    # 使用 threading 模式（比 eventlet 更稳定，不会频繁断连）
+    socketio = SocketIO(
+        app, cors_allowed_origins="*", async_mode='threading',
+        ping_timeout=60, ping_interval=25,
+        max_http_buffer_size=1_000_000,
+    )
     _SOCKETIO_AVAILABLE = True
 except ImportError:
     socketio = None
@@ -3094,14 +3092,16 @@ if __name__ == '__main__':
     threading.Thread(target=open_browser, daemon=True).start()
 
     print("\n  ╔══════════════════════════════════════╗")
-    print("  ║  QuantAxis v5.5  Web 量化平台        ║")
+    print("  ║  QuantAxis v5.6  Web 量化平台        ║")
     print("  ║  http://127.0.0.1:5000              ║")
-    print("  ║  实时行情推送已启用 (10只模拟股票)     ║")
     print("  ╚══════════════════════════════════════╝\n")
 
-    # 使用 SocketIO 启动（支持 WebSocket），降级到 Flask 原生
-    if socketio:
+    # 优先使用 Flask 原生服务器（最稳定），SocketIO 按需启用
+    use_socketio = os.environ.get("QUANT_SOCKETIO", "").lower() in ("1", "true", "yes")
+    if use_socketio and socketio:
+        print("[Server] 使用 SocketIO (WebSocket) 模式")
         socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
     else:
+        print("[Server] 使用 Flask HTTP 模式 (稳定)")
         app.run(host='0.0.0.0', port=5000, debug=False)
     app.run(host='0.0.0.0', port=5000, debug=False)
