@@ -6,13 +6,6 @@ import sys, os, json, io, threading, time, random
 sys.path.insert(0, os.path.dirname(__file__))
 os.chdir(os.path.dirname(__file__))
 
-# eventlet monkey_patch — 必须在所有 import 之前
-try:
-    import eventlet
-    eventlet.monkey_patch()
-except ImportError:
-    pass
-
 from flask import Flask, request, jsonify, render_template, redirect
 from datetime import datetime, timedelta
 from src.auth import token_required, admin_required
@@ -24,7 +17,8 @@ app = Flask(__name__)
 # ═══════════════════════════════════════════════════════════
 try:
     from flask_socketio import SocketIO
-    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading',
+        ping_timeout=60, ping_interval=25)
     _SOCKETIO_AVAILABLE = True
 except ImportError:
     socketio = None
