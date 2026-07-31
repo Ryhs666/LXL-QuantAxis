@@ -23,6 +23,7 @@ from typing import Optional, List, Dict
 from pathlib import Path
 
 from src.backtest.symbols import normalize_market, normalize_symbol
+from src.backtest.providers import CallableDataProvider, ProviderRegistry
 
 # ---- Windows 中文编码修复 ----
 if sys.platform == "win32":
@@ -406,6 +407,53 @@ def get_index_data(symbol: str, start_date: str = "2020-01-01",
 
 
 # ============================================================
+# 默认 Provider 注册表
+# ============================================================
+
+# 使用 lambda 延迟解析，确保 mock patch 仍能生效
+_default_registry = ProviderRegistry()
+_default_registry.register(CallableDataProvider(
+    name="akshare",
+    market="A股",
+    fetcher=lambda symbol, start_date, end_date, use_cache:
+        get_a_stock(symbol, start_date=start_date, end_date=end_date, use_cache=use_cache),
+))
+_default_registry.register(CallableDataProvider(
+    name="yfinance",
+    market="美股",
+    fetcher=lambda symbol, start_date, end_date, use_cache:
+        get_us_stock(symbol, start_date=start_date, end_date=end_date, use_cache=use_cache),
+))
+_default_registry.register(CallableDataProvider(
+    name="akshare",
+    market="港股",
+    fetcher=lambda symbol, start_date, end_date, use_cache:
+        get_hk_stock(symbol, start_date=start_date, end_date=end_date, use_cache=use_cache),
+))
+_default_registry.register(CallableDataProvider(
+    name="akshare",
+    market="指数",
+    fetcher=lambda symbol, start_date, end_date, use_cache:
+        get_index_data(symbol, start_date=start_date, end_date=end_date, use_cache=use_cache),
+))
+
+
+def get_provider_registry() -> ProviderRegistry:
+    """返回默认的 Provider 注册表。"""
+    return _default_registry
+
+
+def register_data_provider(provider, replace: bool = False) -> None:
+    """注册自定义数据源到默认注册表。
+
+    Args:
+        provider: MarketDataProvider 实例
+        replace:  为 True 时允许替换已有注册
+    """
+    _default_registry.register(provider, replace=replace)
+
+
+# ============================================================
 # 统一入口
 # ============================================================
 
@@ -441,16 +489,8 @@ def get_data(symbol: str, market: str = "A股",
         except Exception:
             pass
 
-    if market == "A股":
-        return get_a_stock(symbol, start_date, end_date, use_cache=use_cache)
-    elif market == "美股":
-        return get_us_stock(symbol, start_date, end_date, use_cache=use_cache)
-    elif market == "港股":
-        return get_hk_stock(symbol, start_date, end_date, use_cache=use_cache)
-    elif market == "指数":
-        return get_index_data(symbol, start_date, end_date, use_cache=use_cache)
-    else:
-        raise ValueError(f"不支持的市场: {market}，可选: A股/美股/港股/指数")
+    provider = _default_registry.get(market)
+    return provider.fetch(symbol, start_date, end_date, use_cache=use_cache)
 
 
 # ============================================================
