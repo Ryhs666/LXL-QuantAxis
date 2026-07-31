@@ -384,7 +384,6 @@ HTML = r'''<!DOCTYPE html>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LXL·QuantAxis v5.0</title>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 <style>
 :root{
 --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;--ac:#58a6ff;--gr:#3fb950;
@@ -584,29 +583,6 @@ const S={panel:'dashboard',sym:'600498',sname:'',data:null};
 const AUTH={token:localStorage.getItem('qa_token')||'',user:null,loggedIn:false};
 // 检测 chart 库是否可用（CDN 可能加载慢）
 const HAS_CHARTS=()=>typeof LightweightCharts!=='undefined';
-
-// ═══════════════ Socket.IO 实时数据 ═══════════════
-let _socket=null,_socketReconnectTimer=null;
-function initSocket(){
-  if(typeof io==='undefined'){setTimeout(initSocket,2000);return}
-  if(_socket&&_socket.connected)return;
-  _socket=io({transports:['websocket','polling'],reconnection:true,
-    reconnectionAttempts:Infinity,reconnectionDelay:1000,reconnectionDelayMax:5000});
-  _socket.on('connect',()=>{
-    updateStatus('实时已连接');console.log('[Socket] connected:',_socket.id);
-  });
-  _socket.on('disconnect',(reason)=>{
-    updateStatus('实时断开');console.log('[Socket] disconnected:',reason);
-  });
-  _socket.on('price_update',(data)=>{if(data)Object.entries(data).forEach(([k,v])=>{
-    const el=document.getElementById('rt_'+k);
-    if(el){el.querySelector('.rt-price').textContent=v.price?.toFixed(2)||'--';
-    const pct=el.querySelector('.rt-pct');pct.textContent=(v.change_pct>=0?'+':'')+(v.change_pct||0).toFixed(2)+'%';
-    pct.className='rt-pct '+(v.change_pct>=0?'cg':'cr');}
-  });});
-  _socket.on('strategy_signal',(data)=>{console.log('[Signal]',data);});
-}
-setTimeout(initSocket,500);
 
 // ═══════════════ Navigation ═══════════════
 const NAV=[
@@ -3118,12 +3094,14 @@ if __name__ == '__main__':
     print("\n  ╔══════════════════════════════════════╗")
     print("  ║  QuantAxis v5.6  Web 量化平台        ║")
     print("  ║  http://127.0.0.1:5000              ║")
-    print("  ║  实时行情 · 策略引擎 · AI助手        ║")
     print("  ╚══════════════════════════════════════╝\n")
 
-    if socketio:
-        print("[Server] SocketIO threading 模式启动 (实时数据已启用)")
+    # 优先使用 Flask 原生服务器（最稳定），SocketIO 按需启用
+    use_socketio = os.environ.get("QUANT_SOCKETIO", "").lower() in ("1", "true", "yes")
+    if use_socketio and socketio:
+        print("[Server] 使用 SocketIO (WebSocket) 模式")
         socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
     else:
-        print("[Server] flask-socketio 未安装，实时数据不可用")
+        print("[Server] 使用 Flask HTTP 模式 (稳定)")
         app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=False)
