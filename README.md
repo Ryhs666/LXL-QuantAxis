@@ -53,9 +53,12 @@ python web_modern.py    # Web 平台 (Flask, http://127.0.0.1:5000)
 
 ## 数据
 
-首次使用会自动下载A股全市场股票列表(5500+只)和行情数据。
+首次使用会自动下载A股全市场股票列表和行情数据。
 
-数据存储在 `D:/trading_data/` (可通过环境变量 `QUANT_DATA_DIR` 修改)。
+数据默认存储在 `~/.lxl_quantaxis/`。
+
+可以通过环境变量 `QUANT_DATA_DIR` 修改数据目录。旧环境变量
+`TRADING_DATA_DIR` 仍然兼容，但不再推荐使用。
 
 ## 项目结构
 

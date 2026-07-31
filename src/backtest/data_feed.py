@@ -34,7 +34,22 @@ if sys.platform == "win32":
 # 配置
 # ============================================================
 
-DATA_ROOT = os.environ.get("TRADING_DATA_DIR", r"D:\trading_data")
+def resolve_data_root() -> Path:
+    """Resolve cross-platform data directory.
+
+    Priority:
+      1. QUANT_DATA_DIR env var (recommended)
+      2. TRADING_DATA_DIR env var (legacy)
+      3. ~/.lxl_quantaxis (default)
+    """
+    for var in ("QUANT_DATA_DIR", "TRADING_DATA_DIR"):
+        val = os.environ.get(var)
+        if val:
+            return Path(val)
+    return Path.home() / ".lxl_quantaxis"
+
+
+DATA_ROOT = str(resolve_data_root())
 CACHE_DIR = os.path.join(DATA_ROOT, "cache")
 INDEX_CACHE = os.path.join(CACHE_DIR, "indices")
 STOCK_CACHE = os.path.join(CACHE_DIR, "stocks")
