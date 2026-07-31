@@ -57,11 +57,8 @@ class TestPricesToReturns(unittest.TestCase):
     def test_simple_returns_correct(self):
         r = prices_to_returns(self.prices, method="simple")
         self.assertEqual(r.shape, (4, 3))
-        # A: 101/100 - 1 = 0.01
         self.assertAlmostEqual(r["A"].iloc[0], 0.01)
-        # B: 51/50 - 1 = 0.02
         self.assertAlmostEqual(r["B"].iloc[0], 0.02)
-        # C: 198/200 - 1 = -0.01
         self.assertAlmostEqual(r["C"].iloc[0], -0.01)
 
     def test_log_returns_correct(self):
@@ -105,6 +102,31 @@ class TestPricesToReturns(unittest.TestCase):
     def test_non_dataframe_raises(self):
         with self.assertRaises(TypeError):
             prices_to_returns([1, 2, 3])
+
+    # ---- 新增验证 ----
+
+    def test_prices_with_nan_raises(self):
+        df = pd.DataFrame({"A": [100.0, np.nan, 102.0]})
+        with self.assertRaises(ValueError):
+            prices_to_returns(df, method="simple")
+
+    def test_prices_with_inf_raises(self):
+        df = pd.DataFrame({"A": [100.0, np.inf, 102.0]})
+        with self.assertRaises(ValueError):
+            prices_to_returns(df, method="simple")
+
+    def test_single_row_raises(self):
+        df = pd.DataFrame({"A": [100.0]})
+        with self.assertRaises(ValueError):
+            prices_to_returns(df, method="simple")
+
+    def test_method_none_raises_type_error(self):
+        with self.assertRaises(TypeError):
+            prices_to_returns(self.prices, method=None)
+
+    def test_method_int_raises_type_error(self):
+        with self.assertRaises(TypeError):
+            prices_to_returns(self.prices, method=42)
 
 
 # ============================================================
@@ -165,6 +187,28 @@ class TestValidateWeights(unittest.TestCase):
     def test_empty_assets_raises(self):
         with self.assertRaises(ValueError):
             validate_weights({"A": 1.0}, [])
+
+    # ---- 新增验证 ----
+
+    def test_string_weight_raises(self):
+        with self.assertRaises(ValueError):
+            validate_weights({"A": "0.5", "B": 0.5}, ["A", "B"])
+
+    def test_bool_weight_raises(self):
+        with self.assertRaises(ValueError):
+            validate_weights({"A": True, "B": False}, ["A", "B"])
+
+    def test_negative_tolerance_raises(self):
+        with self.assertRaises(ValueError):
+            validate_weights({"A": 0.5, "B": 0.5}, ["A", "B"], tolerance=-0.1)
+
+    def test_nan_tolerance_raises(self):
+        with self.assertRaises(ValueError):
+            validate_weights({"A": 0.5, "B": 0.5}, ["A", "B"], tolerance=np.nan)
+
+    def test_inf_tolerance_raises(self):
+        with self.assertRaises(ValueError):
+            validate_weights({"A": 0.5, "B": 0.5}, ["A", "B"], tolerance=np.inf)
 
 
 # ============================================================
@@ -230,7 +274,6 @@ class TestCumulativeReturn(unittest.TestCase):
 
     def test_negative(self):
         r = pd.Series([-0.1, 0.1], name="p")
-        # 0.9 * 1.1 - 1 = -0.01
         self.assertAlmostEqual(cumulative_return(r), -0.01)
 
     def test_empty_raises(self):
@@ -244,6 +287,13 @@ class TestCumulativeReturn(unittest.TestCase):
     def test_inf_raises(self):
         with self.assertRaises(ValueError):
             cumulative_return(pd.Series([0.01, np.inf]))
+
+    # ---- 新增验证 ----
+
+    def test_return_below_minus_one_raises(self):
+        r = pd.Series([0.01, -1.5], name="p")
+        with self.assertRaises(ValueError):
+            cumulative_return(r)
 
 
 # ============================================================
@@ -267,6 +317,28 @@ class TestAnnualizedReturn(unittest.TestCase):
         with self.assertRaises(ValueError):
             annualized_return(pd.Series([], dtype=float))
 
+    # ---- 新增验证 ----
+
+    def test_nan_raises(self):
+        r = pd.Series([0.01, np.nan, 0.02])
+        with self.assertRaises(ValueError):
+            annualized_return(r)
+
+    def test_inf_raises(self):
+        r = pd.Series([0.01, np.inf, 0.02])
+        with self.assertRaises(ValueError):
+            annualized_return(r)
+
+    def test_periods_per_year_nan_raises(self):
+        r = pd.Series([0.01] * 10)
+        with self.assertRaises(ValueError):
+            annualized_return(r, periods_per_year=np.nan)
+
+    def test_periods_per_year_inf_raises(self):
+        r = pd.Series([0.01] * 10)
+        with self.assertRaises(ValueError):
+            annualized_return(r, periods_per_year=np.inf)
+
 
 # ============================================================
 # annualized_volatility
@@ -289,6 +361,18 @@ class TestAnnualizedVolatility(unittest.TestCase):
         with self.assertRaises(ValueError):
             annualized_volatility(pd.Series([0.01, 0.02]), periods_per_year=0)
 
+    # ---- 新增验证 ----
+
+    def test_nan_raises(self):
+        r = pd.Series([0.01, np.nan, 0.02])
+        with self.assertRaises(ValueError):
+            annualized_volatility(r)
+
+    def test_inf_raises(self):
+        r = pd.Series([0.01, np.inf, 0.02])
+        with self.assertRaises(ValueError):
+            annualized_volatility(r)
+
 
 # ============================================================
 # sharpe_ratio
@@ -297,16 +381,24 @@ class TestAnnualizedVolatility(unittest.TestCase):
 class TestSharpeRatio(unittest.TestCase):
     """测试夏普比率。"""
 
-    def test_basic(self):
-        """确定性正收益 → 极高 Sharpe。"""
+    def test_constant_returns_raises(self):
+        """常数收益率（零波动）必须抛出 ValueError。"""
         r = pd.Series([0.001] * 252, name="p")
+        with self.assertRaises(ValueError):
+            sharpe_ratio(r, risk_free_rate=0.0, periods_per_year=252)
+
+    def test_normal_positive_sharpe(self):
+        """有波动的正收益应当返回有限的正常 Sharpe。"""
+        rng = np.random.default_rng(42)
+        r = pd.Series(rng.normal(0.001, 0.015, size=252), name="p")
         sr = sharpe_ratio(r, risk_free_rate=0.0, periods_per_year=252)
         self.assertTrue(np.isfinite(sr))
+        self.assertGreater(sr, 0)
 
     def test_with_risk_free_rate_zero_volatility(self):
         """当全部收益等于无风险利率时，超额收益波动率为 0 → ValueError。"""
         rf = 0.05
-        daily_rf = rf / 252
+        daily_rf = (1 + rf) ** (1 / 252) - 1  # 复利换算
         r = pd.Series([daily_rf] * 252, name="p")
         with self.assertRaises(ValueError):
             sharpe_ratio(r, risk_free_rate=rf, periods_per_year=252)
@@ -319,6 +411,43 @@ class TestSharpeRatio(unittest.TestCase):
     def test_less_than_two_obs_raises(self):
         with self.assertRaises(ValueError):
             sharpe_ratio(pd.Series([0.01]))
+
+    # ---- 新增验证 ----
+
+    def test_nan_in_returns_raises(self):
+        r = pd.Series([0.01, np.nan, 0.02])
+        with self.assertRaises(ValueError):
+            sharpe_ratio(r)
+
+    def test_inf_in_returns_raises(self):
+        r = pd.Series([0.01, np.inf, 0.02])
+        with self.assertRaises(ValueError):
+            sharpe_ratio(r)
+
+    def test_returns_below_minus_one_raises(self):
+        r = pd.Series([0.01, -1.5, 0.02])
+        with self.assertRaises(ValueError):
+            sharpe_ratio(r)
+
+    def test_risk_free_rate_nan_raises(self):
+        r = pd.Series([0.01, -0.01, 0.02, -0.02, 0.01])
+        with self.assertRaises(ValueError):
+            sharpe_ratio(r, risk_free_rate=np.nan)
+
+    def test_risk_free_rate_inf_raises(self):
+        r = pd.Series([0.01, -0.01, 0.02, -0.02, 0.01])
+        with self.assertRaises(ValueError):
+            sharpe_ratio(r, risk_free_rate=np.inf)
+
+    def test_risk_free_rate_below_minus_one_raises(self):
+        r = pd.Series([0.01, -0.01, 0.02, -0.02, 0.01])
+        with self.assertRaises(ValueError):
+            sharpe_ratio(r, risk_free_rate=-2.0)
+
+    def test_risk_free_rate_str_raises(self):
+        r = pd.Series([0.01, -0.01, 0.02])
+        with self.assertRaises(TypeError):
+            sharpe_ratio(r, risk_free_rate="0.05")
 
 
 # ============================================================
@@ -350,6 +479,13 @@ class TestMaxDrawdown(unittest.TestCase):
         """-50% 然后 +100% → 净值 1→0.5→1.0，最大回撤 -50%"""
         r = pd.Series([-0.5, 1.0], name="p")
         self.assertAlmostEqual(max_drawdown(r), -0.5)
+
+    # ---- 新增验证 ----
+
+    def test_return_below_minus_one_raises(self):
+        r = pd.Series([0.01, -1.5])
+        with self.assertRaises(ValueError):
+            max_drawdown(r)
 
 
 # ============================================================
@@ -386,20 +522,7 @@ class TestSummarizePortfolio(unittest.TestCase):
         self.assertEqual(m.observation_count, len(self.returns))
 
     def test_hand_calculable_two_asset_case(self):
-        """手工可验证的双资产案例。
-
-        资产 X: 100 → 110 → 121 (每天 +10%)
-        资产 Y: 50  →  47 →  45 (每天 -6%, -4.255%)
-        权重:  X=0.6, Y=0.4
-
-        日收益率:
-          第1天: 0.6*0.10 + 0.4*(-0.06) = 0.036
-          第2天: 0.6*0.10 + 0.4*(-0.042553) ≈ 0.042979
-
-        累计: (1.036)*(1.042979) - 1 ≈ 0.0805
-
-        年化: (1.0805)^(252/2) - 1 ≈ ...
-        """
+        """手工可验证的双资产案例。"""
         prices = pd.DataFrame({
             "X": [100.0, 110.0, 121.0],
             "Y": [50.0, 47.0, 45.0],
@@ -407,20 +530,15 @@ class TestSummarizePortfolio(unittest.TestCase):
         r = prices_to_returns(prices, method="simple")
         w = {"X": 0.6, "Y": 0.4}
 
-        # 验证组合收益率序列
         port = portfolio_return_series(r, w)
-        # day1: 0.6*0.10 + 0.4*(-0.06) = 0.06 - 0.024 = 0.036
         self.assertAlmostEqual(port.iloc[0], 0.036)
-        # day2: Y = (45-47)/47 = -0.042553...
         expected_day2 = 0.6 * 0.10 + 0.4 * (-2.0 / 47.0)
         self.assertAlmostEqual(port.iloc[1], expected_day2)
 
-        # 累计收益率
         cum = cumulative_return(port)
         manual_cum = (1 + port.iloc[0]) * (1 + port.iloc[1]) - 1
         self.assertAlmostEqual(cum, manual_cum)
 
-        # summarize
         m = summarize_portfolio(r, w, periods_per_year=252)
         self.assertEqual(m.observation_count, 2)
         self.assertAlmostEqual(m.cumulative_return, manual_cum)
@@ -435,6 +553,12 @@ class TestSummarizePortfolio(unittest.TestCase):
     def test_with_specified_risk_free_rate(self):
         m = summarize_portfolio(self.returns, self.weights, risk_free_rate=0.03)
         self.assertIsInstance(m, PortfolioMetrics)
+
+    # ---- 新增验证 ----
+
+    def test_risk_free_rate_below_minus_one_raises(self):
+        with self.assertRaises(ValueError):
+            summarize_portfolio(self.returns, self.weights, risk_free_rate=-2.0)
 
 
 # ============================================================

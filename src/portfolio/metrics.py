@@ -1,5 +1,5 @@
 """
-组合收益与风险指标 v1.0
+组合收益与风险指标 v1.1
 
 提供:
   - prices_to_returns:      价格 → 收益率（simple / log）
@@ -23,6 +23,65 @@ import pandas as pd
 
 
 # ============================================================
+# 内部校验辅助
+# ============================================================
+
+def _validate_returns(returns: pd.Series, min_obs: int = 1) -> None:
+    """统一校验收益率 Series。
+
+    检查: 类型、长度、数值 dtype、NaN、inf、单期收益率 ≥ -1。
+    """
+    if not isinstance(returns, pd.Series):
+        raise TypeError(f"returns 必须是 Series，收到: {type(returns).__name__}")
+    if len(returns) < min_obs:
+        raise ValueError(
+            f"returns 至少需要 {min_obs} 个观测值，当前: {len(returns)}"
+        )
+    if not pd.api.types.is_numeric_dtype(returns):
+        raise ValueError("returns 必须是数值 dtype")
+    if returns.isna().any():
+        raise ValueError("returns 包含 NaN 值")
+    # NaN 已排除，此处只捕获 inf
+    if not np.isfinite(returns.values).all():
+        raise ValueError("returns 包含 inf 值")
+    if (returns < -1).any():
+        raise ValueError("单期收益率不得小于 -1")
+
+
+def _validate_periods_per_year(periods_per_year: float) -> None:
+    """校验 periods_per_year：必须是有限正数。"""
+    if not isinstance(periods_per_year, (int, float)):
+        raise TypeError(
+            f"periods_per_year 必须是数值，收到: {type(periods_per_year).__name__}"
+        )
+    if not np.isfinite(periods_per_year):
+        raise ValueError(f"periods_per_year 必须是有限值，收到: {periods_per_year}")
+    if periods_per_year <= 0:
+        raise ValueError(
+            f"periods_per_year 必须为正数，收到: {periods_per_year}"
+        )
+
+
+def _validate_risk_free_rate(risk_free_rate: float) -> None:
+    """校验 risk_free_rate：必须是有限数值且 > -1。"""
+    if not isinstance(risk_free_rate, (int, float)):
+        raise TypeError(
+            f"risk_free_rate 必须是数值，收到: {type(risk_free_rate).__name__}"
+        )
+    if not np.isfinite(risk_free_rate):
+        raise ValueError(f"risk_free_rate 必须是有限值，收到: {risk_free_rate}")
+    if risk_free_rate <= -1:
+        raise ValueError(
+            f"risk_free_rate 必须大于 -1，收到: {risk_free_rate}"
+        )
+
+
+def _rf_per_period(risk_free_rate: float, periods_per_year: float) -> float:
+    """复利方式换算每期无风险收益率。"""
+    return (1 + risk_free_rate) ** (1 / periods_per_year) - 1
+
+
+# ============================================================
 # 价格 → 收益率
 # ============================================================
 
@@ -40,19 +99,38 @@ def prices_to_returns(
         收益率 DataFrame，列名和顺序与输入一致，首行 NaN 已删除。
 
     Raises:
-        ValueError: 空数据、非数值列、重复列、非法 method、log 模式非正价格。
+        TypeError:  method 不是字符串。
+        ValueError: 空数据、行数不足、非数值列、重复列、NaN/inf、
+                    非法 method、log 模式非正价格。
     """
     if not isinstance(prices, pd.DataFrame):
         raise TypeError(f"prices 必须是 DataFrame，收到: {type(prices).__name__}")
     if prices.empty:
         raise ValueError("prices 不能为空")
+    if len(prices) < 2:
+        raise ValueError(f"prices 至少需要 2 个时间点，当前: {len(prices)}")
     if prices.columns.duplicated().any():
         raise ValueError("prices 包含重复的资产列名")
 
     # 检查所有列均为数值
-    non_numeric = [c for c in prices.columns if not pd.api.types.is_numeric_dtype(prices[c])]
+    non_numeric = [
+        c for c in prices.columns
+        if not pd.api.types.is_numeric_dtype(prices[c])
+    ]
     if non_numeric:
         raise ValueError(f"prices 包含非数值列: {non_numeric}")
+
+    # 检查 NaN 和 inf
+    if prices.isna().any().any():
+        raise ValueError("prices 包含 NaN 值")
+    if not np.isfinite(prices.values).all():
+        raise ValueError("prices 包含 inf 值")
+
+    # 校验 method 类型
+    if not isinstance(method, str):
+        raise TypeError(
+            f"method 必须是字符串，收到: {type(method).__name__}"
+        )
 
     method = method.strip().lower()
     if method not in ("simple", "log"):
@@ -62,12 +140,19 @@ def prices_to_returns(
         raise ValueError("log 收益率要求所有价格严格大于 0")
 
     if method == "simple":
-        result = prices.pct_change()
+        result = prices.pct_change(fill_method=None)
     else:
         result = np.log(prices / prices.shift(1))
 
     # 删除首行缺失值
     result = result.dropna(how="all")
+
+    # 计算结果不得包含 NaN 或 inf
+    if result.isna().any().any():
+        raise ValueError("计算结果包含 NaN 值")
+    if not np.isfinite(result.values).all():
+        raise ValueError("计算结果包含 inf 值")
+
     return result
 
 
@@ -91,11 +176,23 @@ def validate_weights(
         按照 assets 顺序排列的权重 Series。
 
     Raises:
-        TypeError:  weights 类型不合法。
-        ValueError: 资产不匹配、权重非法、和不等于 1。
+        TypeError:  weights 类型不合法、tolerance 不是数值。
+        ValueError: 资产不匹配、权重非法、和不等于 1、tolerance 非法。
     """
     if assets is None or len(assets) == 0:
         raise ValueError("assets 不能为空")
+    if len(assets) != len(set(assets)):
+        raise ValueError("assets 列表包含重复项")
+
+    # 校验 tolerance
+    if not isinstance(tolerance, (int, float)):
+        raise TypeError(
+            f"tolerance 必须是数值，收到: {type(tolerance).__name__}"
+        )
+    if not np.isfinite(tolerance):
+        raise ValueError(f"tolerance 必须是有限值，收到: {tolerance}")
+    if tolerance < 0:
+        raise ValueError(f"tolerance 不能为负，收到: {tolerance}")
 
     if isinstance(weights, pd.Series):
         w = weights.copy()
@@ -119,12 +216,18 @@ def validate_weights(
             msg_parts.append(f"多余资产: {sorted(extra)}")
         raise ValueError("资产集合不匹配: " + "; ".join(msg_parts))
 
-    # 过长/短检查
-    if len(assets) != len(set(assets)):
-        raise ValueError("assets 列表包含重复项")
-
     # 按 assets 顺序对齐
     w = w.reindex(assets)
+
+    # 权重必须为数值类型（拒绝字符串、布尔、对象等）
+    if pd.api.types.is_bool_dtype(w):
+        raise ValueError(
+            "权重值必须为数值类型，不允许布尔值"
+        )
+    if not pd.api.types.is_numeric_dtype(w):
+        raise ValueError(
+            "权重值必须为数值类型，不允许字符串或其他非数值"
+        )
 
     # 检查均为有限数值
     if not np.isfinite(w.values).all():
@@ -172,13 +275,18 @@ def portfolio_return_series(
     w = validate_weights(weights, list(returns.columns))
 
     # 检查数值列
-    non_numeric = [c for c in returns.columns if not pd.api.types.is_numeric_dtype(returns[c])]
+    non_numeric = [
+        c for c in returns.columns
+        if not pd.api.types.is_numeric_dtype(returns[c])
+    ]
     if non_numeric:
         raise ValueError(f"returns 包含非数值列: {non_numeric}")
 
-    # 检查无穷值
+    # 检查 NaN / inf
+    if returns.isna().any().any():
+        raise ValueError("returns 包含 NaN 值")
     if not np.isfinite(returns.values).all():
-        raise ValueError("returns 包含 NaN 或 inf 值")
+        raise ValueError("returns 包含 inf 值")
 
     # 加权求和
     port = returns.dot(w)
@@ -199,13 +307,7 @@ def cumulative_return(returns: pd.Series) -> float:
     Returns:
         累计收益率 float。
     """
-    if not isinstance(returns, pd.Series):
-        raise TypeError(f"returns 必须是 Series，收到: {type(returns).__name__}")
-    if len(returns) == 0:
-        raise ValueError("returns 不能为空")
-    if not np.isfinite(returns.values).all():
-        raise ValueError("returns 包含 NaN 或 inf 值")
-
+    _validate_returns(returns, min_obs=1)
     return float(np.prod(1 + returns) - 1)
 
 
@@ -226,12 +328,8 @@ def annualized_return(
     Returns:
         年化收益率 float。
     """
-    if not isinstance(returns, pd.Series):
-        raise TypeError(f"returns 必须是 Series，收到: {type(returns).__name__}")
-    if len(returns) == 0:
-        raise ValueError("returns 不能为空")
-    if periods_per_year <= 0:
-        raise ValueError(f"periods_per_year 必须为正数，收到: {periods_per_year}")
+    _validate_returns(returns, min_obs=1)
+    _validate_periods_per_year(periods_per_year)
 
     cum = np.prod(1 + returns)
     if cum <= 0:
@@ -258,12 +356,8 @@ def annualized_volatility(
     Returns:
         年化波动率 float。
     """
-    if not isinstance(returns, pd.Series):
-        raise TypeError(f"returns 必须是 Series，收到: {type(returns).__name__}")
-    if len(returns) < 2:
-        raise ValueError(f"至少需要 2 个观测值，当前: {len(returns)}")
-    if periods_per_year <= 0:
-        raise ValueError(f"periods_per_year 必须为正数，收到: {periods_per_year}")
+    _validate_returns(returns, min_obs=2)
+    _validate_periods_per_year(periods_per_year)
 
     std = returns.std(ddof=1)
     return float(std * np.sqrt(periods_per_year))
@@ -293,22 +387,21 @@ def sharpe_ratio(
     Raises:
         ValueError: 波动率为 0（无法计算比率）。
     """
-    if not isinstance(returns, pd.Series):
-        raise TypeError(f"returns 必须是 Series，收到: {type(returns).__name__}")
-    if len(returns) < 2:
-        raise ValueError(f"至少需要 2 个观测值，当前: {len(returns)}")
-    if periods_per_year <= 0:
-        raise ValueError(f"periods_per_year 必须为正数，收到: {periods_per_year}")
+    _validate_returns(returns, min_obs=2)
+    _validate_periods_per_year(periods_per_year)
+    _validate_risk_free_rate(risk_free_rate)
 
-    # 每期无风险收益率
-    rf_per_period = risk_free_rate / periods_per_year
+    # 复利方式换算每期无风险收益率
+    rf_per_period = _rf_per_period(risk_free_rate, periods_per_year)
     excess = returns - rf_per_period
 
-    mean_excess = excess.mean()
     std_excess = excess.std(ddof=1)
 
-    if std_excess == 0:
-        raise ValueError("波动率为 0，无法计算 Sharpe Ratio")
+    # 浮点近零判断，避免常数收益率产生 inf
+    if np.isclose(std_excess, 0.0, atol=1e-12):
+        raise ValueError("波动率接近 0，无法计算 Sharpe Ratio")
+
+    mean_excess = excess.mean()
 
     # 年化
     return float((mean_excess / std_excess) * np.sqrt(periods_per_year))
@@ -329,12 +422,7 @@ def max_drawdown(returns: pd.Series) -> float:
     Returns:
         最大回撤 float（≤ 0；全程上涨时返回 0.0）。
     """
-    if not isinstance(returns, pd.Series):
-        raise TypeError(f"returns 必须是 Series，收到: {type(returns).__name__}")
-    if len(returns) == 0:
-        raise ValueError("returns 不能为空")
-    if not np.isfinite(returns.values).all():
-        raise ValueError("returns 包含 NaN 或 inf 值")
+    _validate_returns(returns, min_obs=1)
 
     # 构建净值曲线，初始值 1.0 作为起点峰值
     eq_values = np.concatenate([[1.0], (1 + returns).values])
@@ -380,6 +468,9 @@ def summarize_portfolio(
     Returns:
         PortfolioMetrics（frozen dataclass）。
     """
+    _validate_risk_free_rate(risk_free_rate)
+    _validate_periods_per_year(periods_per_year)
+
     port_returns = portfolio_return_series(returns, weights)
 
     return PortfolioMetrics(
