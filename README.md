@@ -1,86 +1,259 @@
-# LXL·QuantAxis v5.0
+# LXL QuantAxis
 
-个人量化交易平台 — 15策略 · 18因子 · 5500+ A股 · AI驱动
+## AI-Augmented Quantitative Research Platform
 
-## 快速开始
+**Quantitative Finance × Artificial Intelligence × Equity Research**
 
-```bash
-pip install -r requirements.txt
-python main.py          # CLI 菜单
-python src/app.py       # 桌面应用 (tkinter)
-python web_modern.py    # Web 平台 (Flask, http://127.0.0.1:5000)
+*Developed by LXL Equity Research Lab*
+
+---
+
+## Overview
+
+LXL QuantAxis is an AI-powered quantitative research infrastructure designed for systematic equity research and investment analysis. It provides a comprehensive research pipeline spanning data acquisition, factor engineering, strategy development, historical simulation, and portfolio intelligence — augmented by LLM-based AI assistants for research synthesis and strategy discussion.
+
+**Core research capabilities:**
+
+- **Quantitative Research** — systematic strategy development and evaluation
+- **Factor Modeling** — multi-dimensional factor engineering with 18 registered factors across 5 categories
+- **Strategy Evaluation** — event-driven backtesting engine with grid search and walk-forward optimization
+- **Portfolio Analytics** — position monitoring, P&L attribution, and risk assessment
+- **AI-Assisted Research** — LLM-powered analysis, strategy brainstorming, and research summaries
+
+---
+
+## Research Framework
+
+```
+         ┌──────────────────────┐
+         │     Market Data      │
+         │  (Sina + East Money  │
+         │   + yfinance + CSRC) │
+         └──────────┬───────────┘
+                    ▼
+         ┌──────────────────────┐
+         │   Factor Research    │
+         │  18 factors · 5 cats │
+         │  Compute → Evaluate  │
+         └──────────┬───────────┘
+                    ▼
+         ┌──────────────────────┐
+         │ Strategy Development │
+         │  15 registered ·     │
+         │  Composable rules    │
+         └──────────┬───────────┘
+                    ▼
+         ┌──────────────────────┐
+         │    Backtesting        │
+         │  Event-driven engine  │
+         │  Grid Search · WFA    │
+         └──────────┬───────────┘
+                    ▼
+         ┌──────────────────────┐
+         │  Portfolio Analysis   │
+         │  Metrics · Charts     │
+         │  Risk decomposition   │
+         └──────────┬───────────┘
+                    ▼
+         ┌──────────────────────┐
+         │  Investment Insight   │
+         │  AI synthesis ·       │
+         │  Research reports     │
+         └──────────────────────┘
 ```
 
-## 功能
+---
 
-| 模块 | 功能 |
-|------|------|
-| 快速验证 | 选股票 → 选策略 → 回测 |
-| 个股诊断 | 15策略排名 + 18因子 + 入场评分 |
-| 智能推荐 | 最优策略 + 买入价 + 卖出价 + 止损价 + AI讨论 |
-| AI策略战法 | 自然语言描述思路 → AI自动构建策略 → 回测 |
-| 因子策略构建器 | 18因子自选配权重 → 自定义策略 |
-| 每日快扫 | 13只默认标的信号排名 |
-| AI复盘/对话/简报 | DeepSeek/OpenAI 兼容 |
+## Core Modules
 
-## 策略库 (15个)
+### Quant Strategy Engine
 
-7个经典: 双均线交叉、RSI、MACD、布林带、海龟交易、均值回归、动量突破
+A systematic strategy research and evaluation framework. Design, test, and refine trading strategies within a unified API.
 
-4个因子: 逆势交易V1、趋势跟踪V1、量价突破V1、均值回归V2
+**Classic strategies (7):**
 
-4个高级: 自适应复合、趋势做空、双向交易、状态感知
+| Strategy | Description |
+|----------|-------------|
+| `ma_cross` | Dual Moving Average Crossover |
+| `rsi` | RSI Overbought/Oversold Reversal |
+| `macd` | MACD Golden Cross / Death Cross |
+| `bollinger` | Bollinger Band Mean Reversion |
+| `turtle` | Turtle Trading with ATR-based Stops |
+| `mean_reversion` | Statistical Mean Reversion |
+| `momentum` | Momentum Breakout with Volume Confirmation |
 
-## 因子体系 (18个)
+**Factor-composed strategies (4):**
 
-趋势(4): ma_deviation, ma_alignment, ma_slope, trend_strength
+| Strategy | Logic |
+|----------|-------|
+| `contrarian_v1` | RSI oversold + Bollinger lower band + Volume surge → weighted signal |
+| `trend_following_v1` | MA golden cross + strong trend + momentum → weighted signal |
+| `volume_breakout_v1` | Volume surge 2× + momentum + trend strength → weighted signal |
+| `mean_reversion_v2` | MA deviation + low volatility + hammer pattern → weighted signal |
 
-动量(5): rsi_norm, macd_hist, roc_10, price_position, momentum_score
+**Advanced strategies (4):**
 
-波动(4): volatility, bollinger_pos, bollinger_width, atr_ratio
+| Strategy | Description |
+|----------|-------------|
+| `adaptive_composite` | Multi-signal adaptive weighting across regimes |
+| `trend_short` | Dedicated short-side trend following |
+| `dual_direction` | Long/short bidirectional trading |
+| `regime_aware` | Market-regime-aware signal modulation |
 
-成交量(3): volume_ratio, volume_trend, obv_divergence
+### Factor Research Laboratory
 
-形态(2): hammer, engulfing
+A multi-factor modeling framework for systematic alpha research. Compose, weight, and evaluate factor combinations.
 
-## AI 配置
+**Trend (4):** `ma_deviation` · `ma_alignment` · `ma_slope` · `trend_strength`
 
-在桌面应用左侧 `AI智能体 → 配置AI` 中设置:
+**Momentum (5):** `rsi_norm` · `macd_hist` · `roc_10` · `price_position` · `momentum_score`
 
-- API Key: 你的密钥
-- Base URL: `https://api.deepseek.com` (或其他OpenAI兼容接口)
-- Model: `deepseek-chat`
+**Volatility (4):** `volatility` · `bollinger_pos` · `bollinger_width` · `atr_ratio`
 
-## 数据
+**Volume (3):** `volume_ratio` · `volume_trend` · `obv_divergence`
 
-首次使用会自动下载A股全市场股票列表(5500+只)和行情数据。
+**Pattern (2):** `hammer` · `engulfing`
 
-数据存储在 `D:/trading_data/` (可通过环境变量 `QUANT_DATA_DIR` 修改)。
+### Backtesting Engine
 
-## 项目结构
+Event-driven historical simulation engine with:
+
+- Multi-asset support (A-shares, US equities, HK equities, indices)
+- Realistic transaction cost and slippage modeling
+- Grid search hyperparameter optimization
+- Walk-forward analysis for out-of-sample robustness testing
+- Batch runner for cross-sectional strategy evaluation
+- Performance metrics: Sharpe ratio, max drawdown, Calmar ratio, win rate, profit factor
+
+### Portfolio Intelligence
+
+Portfolio monitoring and risk analytics:
+
+- Real-time position tracking with cost basis and P&L
+- Trade journaling with post-trade review scoring
+- Portfolio-level performance attribution
+- Multi-strategy return decomposition
+- Interactive HTML dashboards with Plotly visualizations
+
+### AI Investment Research Assistant
+
+LLM-powered research capabilities (compatible with DeepSeek, OpenAI, and other API providers):
+
+- **Strategy Discussion** — natural language strategy ideation and critique
+- **Market Analysis** — AI-synthesized market commentary
+- **Research Summaries** — automated post-backtest analysis reports
+- **Diagnostic Reports** — AI-generated equity diagnostics with entry/exit reasoning
+
+---
+
+## Technology Stack
+
+| Layer | Technology |
+|-------|------------|
+| Core Compute | Python 3, NumPy, Pandas |
+| Data Acquisition | AKShare, yfinance, Sina Finance, East Money |
+| Technical Analysis | pandas-ta |
+| Visualization | Plotly, Matplotlib |
+| Web Server | Flask |
+| Data Persistence | SQLAlchemy, SQLite |
+| AI Integration | LLM API (OpenAI-compatible) |
+| Authentication | bcrypt, PyJWT |
+
+---
+
+## Project Architecture
 
 ```
 PythonProject1/
-├── main.py              # CLI主菜单
-├── web_modern.py        # Web平台 (Flask)
-├── daily_runner.py      # 每日自动扫描脚本
-├── USER_GUIDE.md        # 使用手册
+├── main.py                  # CLI research console
+├── web_modern.py            # Web platform (Flask, http://127.0.0.1:5000)
+├── daily_runner.py          # Automated daily signal scanner
+├── ARCHITECTURE.md          # Full architecture documentation
+├── USER_GUIDE.md            # User manual
+├── requirements.txt         # Dependencies
+│
 ├── src/
-│   ├── app.py           # 桌面应用 (tkinter)
-│   ├── dialogs.py       # 对话框模块
-│   ├── config.py        # 配置管理
-│   ├── models/          # 数据模型 (交易/策略)
-│   ├── backtest/        # 回测引擎 + 数据源 + 优化器
-│   ├── strategies/      # 策略库 (15个)
-│   ├── factors/         # 因子体系 (18个)
-│   ├── analysis/        # 图表 + 报表
-│   ├── journal/         # 交易日志
-│   ├── ai/              # AI助手 (引擎+复盘+工厂)
-│   ├── index/           # 指数估值 + 轮动
-│   └── dashboard/       # 可视化仪表盘
-└── ARCHITECTURE.md      # 架构文档
+│   ├── app.py               # Desktop application (tkinter)
+│   ├── config.py            # Configuration management
+│   ├── utils.py             # Utilities (logging, retry, progress)
+│   ├── models/              # Data models (Trade, Strategy)
+│   ├── backtest/            # Engine, data feed, optimizer, batch runner
+│   ├── strategies/          # Strategy library (15 strategies)
+│   ├── factors/             # Factor definitions + signal composer
+│   ├── analysis/            # Charts + performance reports
+│   ├── journal/             # Trade journal CLI
+│   ├── ai/                  # AI assistant (engine, review, factory)
+│   ├── index/               # Index valuation + rotation
+│   └── dashboard/           # HTML dashboards
 ```
+
+For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+---
+
+## Quick Start
+
+### Installation
+
+```bash
+pip install -r requirements.txt
+```
+
+### Launch
+
+```bash
+# Web research platform (Flask)
+python web_modern.py
+# Open http://127.0.0.1:5000
+
+# CLI research console
+python main.py
+
+# Desktop application (tkinter)
+python src/app.py
+```
+
+### AI Configuration
+
+Configure your LLM provider in the desktop application under **AI Agent → Settings**:
+
+- **API Key** — your provider key
+- **Base URL** — `https://api.deepseek.com` (or any OpenAI-compatible endpoint)
+- **Model** — `deepseek-chat`
+
+### Data
+
+On first run, the system auto-downloads the full A-share universe (5,500+ listed equities) and historical price data.
+
+Data is stored at `D:/trading_data/` by default. Override via the `QUANT_DATA_DIR` environment variable.
+
+---
+
+## Research Coverage
+
+| Market | Source | Instruments |
+|--------|--------|-------------|
+| China A-Shares | Sina Finance + East Money | 5,500+ stocks |
+| US Equities | yfinance | NYSE / NASDAQ |
+| Hong Kong Equities | AKShare | HKEX |
+| Indices | Multiple sources | CSI 300, SSE 50, S&P 500, etc. |
+
+---
+
+## Roadmap
+
+- **Global Equity Market Support** — expanded data coverage across APAC and EMEA
+- **Advanced Factor Models** — machine learning factor discovery and IC analysis
+- **Portfolio Optimization** — mean-variance optimization and risk parity
+- **AI Research Agent** — autonomous multi-turn research workflows
+- **Automated Equity Research Reports** — scheduled report generation with AI synthesis
+
+---
 
 ## License
 
-MIT
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+*LXL QuantAxis v6.0 · AI-Augmented Quantitative Research Platform · LXL Equity Research Lab*
