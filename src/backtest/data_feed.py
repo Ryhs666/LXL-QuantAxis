@@ -24,6 +24,7 @@ from pathlib import Path
 
 from src.backtest.symbols import normalize_market, normalize_symbol
 from src.backtest.providers import CallableDataProvider, ProviderRegistry
+from src.backtest.market_metadata import get_market_metadata
 
 # ---- Windows 中文编码修复 ----
 if sys.platform == "win32":
@@ -490,7 +491,18 @@ def get_data(symbol: str, market: str = "A股",
             pass
 
     provider = _default_registry.get(market)
-    return provider.fetch(symbol, start_date, end_date, use_cache=use_cache)
+    df = provider.fetch(symbol, start_date, end_date, use_cache=use_cache)
+
+    # 附加市场元数据
+    meta = get_market_metadata(market)
+    df.attrs["symbol"] = symbol
+    df.attrs["market"] = market
+    df.attrs["timezone"] = meta.timezone
+    df.attrs["currency"] = meta.currency
+    df.attrs["calendar"] = meta.calendar
+    df.attrs["provider"] = provider.name
+
+    return df
 
 
 # ============================================================
