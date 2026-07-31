@@ -547,16 +547,25 @@ FACTOR_REGISTRY["my_factor"] = Factor(
 )
 ```
 
-### Add a New Data Source
+### Add a New Data Provider
 
 ```python
-# In src/backtest/data_feed.py
-def get_xxx_data(symbol, start_date, end_date):
-    # Data acquisition logic
-    return df  # Standard OHLCV DataFrame
+# In src/data/providers/
+from src.data.providers.base import BaseProvider
 
-# Add branch in get_data()
-```
+class MyProvider(BaseProvider):
+    name = "my_provider"
+    supported_markets = (Market.JP,)  # Extend Market enum if needed
+    supported_asset_types = (AssetType.STOCK, AssetType.ETF)
+
+    def get_history(self, request: DataRequest) -> pd.DataFrame:
+        # Fetch data from your source
+        df = my_fetch_function(request.symbol, ...)
+        return validate_ohlcv(df, request.symbol, request.market)
+
+# Register with the service
+from src.data.service import service
+service.register_provider(MyProvider())
 
 ### Add a New AI Analyst
 

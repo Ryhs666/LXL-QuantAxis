@@ -1,5 +1,18 @@
 """
-行情数据获取模块 v2.0
+行情数据获取模块 v2.0 → v5.6 migration
+
+[LEGACY] This module is maintained for backward compatibility.
+Core data functions (get_data, get_a_stock, etc.) now delegate to
+the new src.data.MarketDataService architecture.
+
+New code should use:
+    from src.data import MarketDataService, DataRequest, Market
+    svc = MarketDataService()
+    df = svc.get_history(DataRequest(symbol="600519", market=Market.CN))
+
+The original implementations below are preserved as reference.
+At import time, they are replaced by compatibility wrappers from
+src.data.service which use the new provider/cache/validator stack.
 
 支持市场:
   - A 股（akshare）: 日线/周线/月线
@@ -547,3 +560,25 @@ def refresh_cache(symbols: list = None):
     results = download_watchlist(watchlist, verbose=True)
     print(f"完成！成功: {len(results)}, 全部已更新到缓存。")
     return results
+
+
+# ============================================================
+# v5.6 Migration — compatibility overrides
+# ============================================================
+# The imports below replace the legacy implementations above
+# with wrappers that delegate to src.data.MarketDataService.
+# All downstream code (CLI, web, backtest, daily_runner) calling
+# e.g. `from src.backtest.data_feed import get_data` continues
+# to work without modification.
+
+from src.data.service import (  # noqa: E402
+    get_data,
+    get_a_stock,
+    get_us_stock,
+    get_hk_stock,
+    get_index_data,
+    download_watchlist,
+    get_default_watchlist,
+    download_all_default,
+    get_data_summary,
+)

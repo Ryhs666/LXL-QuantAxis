@@ -152,6 +152,7 @@ LLM-powered research capabilities (compatible with DeepSeek, OpenAI, and other A
 |-------|------------|
 | Core Compute | Python 3, NumPy, Pandas |
 | Data Acquisition | AKShare, yfinance, Sina Finance, East Money |
+| Data Infrastructure | src/data — MarketDataService, Provider architecture, Hierarchical cache |
 | Technical Analysis | pandas-ta |
 | Visualization | Plotly, Matplotlib |
 | Web Server | Flask |
@@ -177,7 +178,9 @@ PythonProject1/
 │   ├── config.py            # Configuration management
 │   ├── utils.py             # Utilities (logging, retry, progress)
 │   ├── models/              # Data models (Trade, Strategy)
-│   ├── backtest/            # Engine, data feed, optimizer, batch runner
+│   ├── data/                # Global market data engine
+│   │   ├── providers/        #   ChinaProvider, YahooProvider, MacroProvider
+│   ├── backtest/             # Engine, data feed, optimizer, batch runner
 │   ├── strategies/          # Strategy library (15 strategies)
 │   ├── factors/             # Factor definitions + signal composer
 │   ├── analysis/            # Charts + performance reports
