@@ -138,11 +138,26 @@ class TradeAudit:
                 )
 
     @staticmethod
-    def send_alert(title: str, message: str):
-        """发送桌面弹窗 (Win10/11)"""
+    def send_alert(title: str, message: str, popup: bool = False):
+        """发送告警 — 默认静默写入日志文件，不弹窗。
+
+        Args:
+            title: 告警标题
+            message: 告警内容
+            popup: 是否弹窗（默认 False，仅写入日志）
+        """
         _audit_logger.warning(f"ALERT | {title} | {message.replace(chr(10), '; ')}")
 
-        # 方法1: win10toast (如果安装了)
+        # 写入告警文件（始终执行）
+        alert_path = os.path.join(LOG_DIR, "alerts.log")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        with open(alert_path, "a", encoding="utf-8") as f:
+            f.write(f"[{now}] {title}\n{message}\n{'='*40}\n")
+
+        # 弹窗（仅在显式启用时）
+        if not popup:
+            return
+
         try:
             from win10toast import ToastNotifier
             ToastNotifier().show_toast(title, message, duration=10, threaded=True)
@@ -150,19 +165,11 @@ class TradeAudit:
         except ImportError:
             pass
 
-        # 方法2: Windows 原生 API (无需额外依赖)
         try:
             import ctypes
             ctypes.windll.user32.MessageBoxW(0, message, title, 0x40030)
-            return
         except Exception:
             pass
-
-        # 方法3: 写入告警文件
-        alert_path = os.path.join(LOG_DIR, "alerts.log")
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        with open(alert_path, "a", encoding="utf-8") as f:
-            f.write(f"[{now}] {title}\n{message}\n{'='*40}\n")
 
     # ═══════════════════════════════════════════
     # 3. 查询
