@@ -8,6 +8,41 @@ os.chdir(os.path.dirname(__file__))
 
 from flask import Flask, request, jsonify, render_template, redirect
 from datetime import datetime, timedelta
+from functools import wraps
+
+# ============================================================
+# API 超时保护 — 防止网络请求卡死
+# ============================================================
+def _run_with_timeout(fn, args=(), kwargs=None, timeout=8, fallback=None):
+    """在线程中运行函数，超时则返回 fallback 或抛出 TimeoutError"""
+    import concurrent.futures
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(fn, *args, **(kwargs or {}))
+            return future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        if fallback is not None:
+            return fallback
+        raise TimeoutError(f"请求超时（{timeout}秒），请检查网络后重试")
+    except Exception:
+        raise
+
+def _timeout_protected(timeout=8):
+    """装饰器：超时保护的 API 端点"""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            import concurrent.futures
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(fn, *args, **kwargs)
+                    return future.result(timeout=timeout)
+            except concurrent.futures.TimeoutError:
+                return jsonify({"error": f"请求超时（{timeout}秒），网络可能不稳定，请稍后重试"})
+            except Exception as e:
+                return jsonify({"error": str(e)})
+        return wrapper
+    return decorator
 from src.auth import token_required, admin_required
 
 app = Flask(__name__)
@@ -1715,6 +1750,7 @@ def api_admin_disable_user(uid):
 
 
 @app.route('/api/backtest', methods=['POST'])
+@_timeout_protected(timeout=20)
 @token_required
 def api_backtest():
     from flask import g
@@ -1743,6 +1779,7 @@ def api_backtest():
         return jsonify({"error": str(e)})
 
 @app.route('/api/diagnosis', methods=['POST'])
+@_timeout_protected(timeout=25)
 @token_required
 def api_diagnosis():
     from flask import g
@@ -2344,6 +2381,7 @@ def api_daily_brief():
     })
 
 @app.route('/api/recommend', methods=['POST'])
+@_timeout_protected(timeout=25)
 @token_required
 def api_recommend():
     from flask import g

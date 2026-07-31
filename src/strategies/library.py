@@ -814,6 +814,31 @@ STRATEGIES = {
         },
         "description": "突破 N 日高点买入，配合成交量 + 趋势过滤",
     },
+    # ---- 因子组合策略 (4个独有模板) ----
+    "contrarian_v1": {
+        "name": "逆势交易V1",
+        "class": None,  # 工厂函数在 composer.py PRESET_STRATEGIES
+        "params": {},
+        "description": "RSI超卖(权重3)+布林下轨(权重2)+放量(权重1)→加权总分>=4买入",
+    },
+    "trend_following_v1": {
+        "name": "趋势跟踪V1",
+        "class": None,
+        "params": {},
+        "description": "均线金叉(权重3)+强趋势(权重2)+动量(权重1)→加权总分>=4买入",
+    },
+    "volume_breakout_v1": {
+        "name": "量价突破V1",
+        "class": None,
+        "params": {},
+        "description": "放量2倍(权重3)+动量强(权重2)+趋势强(权重1)→加权总分>=4买入",
+    },
+    "mean_reversion_v2": {
+        "name": "均值回归V2",
+        "class": None,
+        "params": {},
+        "description": "偏离均线(权重2)+低波动(权重1)+锤子线(权重2)→加权总分>=3买入",
+    },
 }
 
 
