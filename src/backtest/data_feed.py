@@ -22,6 +22,8 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 from pathlib import Path
 
+from src.backtest.symbols import normalize_market, normalize_symbol
+
 # ---- Windows 中文编码修复 ----
 if sys.platform == "win32":
     try:
@@ -423,6 +425,10 @@ def get_data(symbol: str, market: str = "A股",
         use_cache: 是否使用缓存
         min_lookback_days: 最少需要多少天数据(自动扩展start_date)
     """
+    # 标准化市场和代码
+    market = normalize_market(market)
+    symbol = normalize_symbol(symbol, market)
+
     # 自动扩展起始日期: 策略需要足够历史数据计算指标(如MA60需60天)
     if min_lookback_days > 0 and start_date:
         from datetime import datetime, timedelta
