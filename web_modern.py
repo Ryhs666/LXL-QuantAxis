@@ -1,5 +1,5 @@
 """
-LXL·QuantAxis v5.0 — 完整Web量化平台
+LXL·QuantAxis — 完整Web量化平台
 TradingView风格 · 全部功能 · 一键启动 · 实时行情推送
 """
 import sys, os, json, io, threading, time, random
@@ -16,6 +16,7 @@ except ImportError:
 from flask import Flask, request, jsonify, render_template, redirect
 from datetime import datetime, timedelta
 from src.auth import token_required, admin_required
+from src.lxl_quantaxis.version import __version__
 
 app = Flask(__name__)
 
@@ -382,7 +383,7 @@ HTML = r'''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LXL·QuantAxis v5.0</title>
+<title>LXL·QuantAxis v__APP_VERSION__</title>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 :root{
@@ -548,7 +549,7 @@ cursor:pointer;margin-top:4px;transition:all .15s}
 </div>
 <div id="app">
 <div class="sidebar">
-<div class="logo"><h1>LXL<span>·</span>QuantAxis</h1><p>量化交易平台 v5.0</p></div>
+<div class="logo"><h1>LXL<span>·</span>QuantAxis</h1><p>量化交易平台 v__APP_VERSION__</p></div>
 <div class="nav" id="nav"></div>
 <div class="footer"><span class="dot live"></span>5533只A股 · 11个策略 · 实时数据</div>
 </div>
@@ -1306,7 +1307,7 @@ def studio_page():
 @app.route('/classic')
 def classic_dashboard():
     """原有完整功能面板 — 侧边栏菜单 + 仪表盘 + 回测 + AI 等全功能"""
-    return HTML
+    return HTML.replace("__APP_VERSION__", __version__)
 
 @app.route('/admin')
 def admin_page():
@@ -3092,7 +3093,7 @@ if __name__ == '__main__':
     threading.Thread(target=open_browser, daemon=True).start()
 
     print("\n  ╔══════════════════════════════════════╗")
-    print("  ║  QuantAxis v5.5  Web 量化平台        ║")
+    print(f"  ║  QuantAxis v{__version__}  Web 量化平台        ║")
     print("  ║  http://127.0.0.1:5000              ║")
     print("  ║  实时行情推送已启用 (10只模拟股票)     ║")
     print("  ╚══════════════════════════════════════╝\n")

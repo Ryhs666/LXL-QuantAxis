@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=80,<84"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lxl-quantaxis"
+dynamic = ["version"]
+description = "AI-powered investment research and quantitative decision system"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "MIT"
+dependencies = [
+    "akshare>=1.16.0",
+    "bcrypt>=4.0.0",
+    "flask>=3.0.0",
+    "matplotlib>=3.7.0",
+    "numpy>=1.24.0,<3",
+    "pandas>=2.0.0,<4",
+    "plotly>=5.15.0",
+    "pyjwt>=2.8.0",
+    "pyyaml>=6.0",
+    "requests>=2.32.0",
+    "sqlalchemy>=2.0.0",
+    "tabulate>=0.9.0",
+    "yfinance>=0.2.30",
+]
+
+[project.optional-dependencies]
+realtime = [
+    "apscheduler>=3.10.0",
+    "eventlet>=0.35.0",
+    "flask-socketio>=5.3.0",
+    "redis>=5.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "bandit[toml]>=1.8.0,<2",
+    "mypy>=1.15.0,<2",
+    "ruff>=0.11.0,<1",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "src.lxl_quantaxis.version.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["B", "C4", "E", "F", "I", "N", "RUF", "SIM", "UP", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_configs = true
+
+[tool.bandit]
+exclude_dirs = ["tests"]

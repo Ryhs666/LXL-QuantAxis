@@ -12,6 +12,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.lxl_quantaxis.version import __version__
+
 try:
     import yaml
     _HAS_YAML = True
@@ -23,7 +25,7 @@ except ImportError:
 DEFAULTS = {
     # ---- 系统 ----
     "project_name": "投资策略模型系统",
-    "version": "0.3.0",
+    "version": __version__,
     "log_level": "INFO",
     "log_dir": "D:/trading_data/logs",
 

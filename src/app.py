@@ -8,6 +8,8 @@ from tkinter import ttk, scrolledtext
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+from src.lxl_quantaxis.version import __version__
+
 # ═══════════════════════════════════════════════════════════
 # 主题
 # ═══════════════════════════════════════════════════════════
@@ -47,7 +49,7 @@ class PrintRedirector:
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("LXL·QuantAxis v5.0")
+        self.root.title(f"LXL·QuantAxis v{__version__}")
         self.root.geometry("1300x900")
         self.root.minsize(1100, 720)
         self.root.configure(bg=BG0)
@@ -73,7 +75,7 @@ class App:
                 bg=BG0, fg=ACC).pack(side=tk.LEFT)
         tk.Label(logo, text="·QuantAxis", font=("Segoe UI", 20, "bold"),
                 bg=BG0, fg="#f1f5f9").pack(side=tk.LEFT)
-        tk.Label(logo, text="v2.1", font=FST, bg=BG0, fg=TX3).pack(side=tk.LEFT, padx=(8,0))
+        tk.Label(logo, text=f"v{__version__}", font=FST, bg=BG0, fg=TX3).pack(side=tk.LEFT, padx=(8,0))
 
         self.sts = tk.Label(tb, text="", font=FST, bg=BG0, fg=GRN)
         self.sts.pack(side=tk.RIGHT, padx=(0,8))
@@ -146,7 +148,7 @@ class App:
             for label, cmd in btns:
                 self._side_btn(si, label, cmd, accent)
 
-        tk.Label(si, text="LXL·QuantAxis v5.0", font=FST, bg=BG1, fg=TX3).pack(pady=(20,10))
+        tk.Label(si, text=f"LXL·QuantAxis v{__version__}", font=FST, bg=BG1, fg=TX3).pack(pady=(20,10))
 
         # ── 右侧 ──
         rt = tk.Frame(main, bg=BG0)
@@ -258,7 +260,7 @@ class App:
     def _welcome(self):
         """欢迎信息"""
         self._log("╔══════════════════════════════════════╗")
-        self._log("║   LXL·QuantAxis v5.0  量化交易平台   ║")
+        self._log(f"║   LXL·QuantAxis v{__version__}  量化交易平台   ║")
         self._log("║   输入 help 查看可用命令             ║")
         self._log("╚══════════════════════════════════════╝")
 

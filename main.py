@@ -1,6 +1,6 @@
 
 """
-投资策略模型系统 v0.3 — 主入口
+LXL·QuantAxis — 主入口
 
 ═══════════════════════════════════════════
   用数据驱动交易决策 · 属于你自己的量化体系
@@ -36,6 +36,8 @@ if sys.platform == "win32":
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from src.lxl_quantaxis.version import __version__
+
 
 def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
@@ -45,7 +47,7 @@ def print_banner():
     from src.console import Style
     print(f"""
 {Style.CYAN}{Style.BOLD}╔══════════════════════════════════════════════════╗
-║     📈 LXL·QuantAxis 投资策略模型 v0.3               ║
+║     📈 LXL·QuantAxis 投资策略模型 v{__version__:<17}║
 ║        用数据驱动交易决策 · 属于自己的量化体系         ║
 ╚══════════════════════════════════════════════════╝{Style.RESET}
     """)
