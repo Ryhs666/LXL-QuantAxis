@@ -60,6 +60,7 @@ known-first-party = ["src"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/auth/*.py" = ["N818", "RUF001", "RUF002"]
+"src/config.py" = ["RUF002", "RUF003"]
 
 [tool.ruff.format]
 quote-style = "double"

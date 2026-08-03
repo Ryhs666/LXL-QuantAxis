@@ -7,11 +7,13 @@
     print(config.data_dir)
 """
 
-import os
 import json
+import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from src.lxl_quantaxis.core.config import CoreSettings
 from src.lxl_quantaxis.version import __version__
 
 try:
@@ -26,6 +28,9 @@ DEFAULTS = {
     # ---- 系统 ----
     "project_name": "投资策略模型系统",
     "version": __version__,
+    "v2_core_enabled": False,
+    "core_timezone": "Asia/Shanghai",
+    "default_currency": "CNY",
     "log_level": "INFO",
     "log_dir": "D:/trading_data/logs",
 
@@ -134,7 +139,7 @@ _config = None
 class Config:
     """全局配置管理"""
 
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str | None = None):
         self._data = DEFAULTS.copy()
         self._loaded_from = []
 
@@ -161,10 +166,10 @@ class Config:
             return
         try:
             if _HAS_YAML:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     data = yaml.safe_load(f)
             else:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     data = json.load(f)
             if data:
                 self._data.update(data)
@@ -211,7 +216,24 @@ class Config:
     def to_dict(self) -> dict:
         return dict(self._data)
 
-    def save(self, path: str = None):
+    def to_core_settings(
+        self,
+        overrides: Mapping[str, object] | None = None,
+        environ: Mapping[str, str] | None = None,
+    ) -> CoreSettings:
+        """Expose legacy configuration through the side-effect-free V2 contract.
+
+        V2 remains disabled by default. Direct V2 environment variables and
+        explicit overrides take precedence over legacy ``QUANT_*`` values.
+        """
+
+        return CoreSettings.from_sources(
+            legacy=self._data,
+            environ=os.environ if environ is None else environ,
+            overrides=overrides,
+        )
+
+    def save(self, path: str | None = None):
         """保存当前配置为 JSON"""
         if path is None:
             path = str(Path(__file__).parent.parent.parent / "config.json")
@@ -231,3 +253,12 @@ class Config:
 
 # 全局单例
 config = Config()
+
+
+def get_v2_core_settings(
+    overrides: Mapping[str, object] | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> CoreSettings:
+    """Return typed V2 settings without changing the legacy default path."""
+
+    return config.to_core_settings(overrides=overrides, environ=environ)
