@@ -41,7 +41,7 @@ class Signal:
 @dataclass
 class StrategyConfig:
     """策略参数配置"""
-    name: str                      # 策略名称
+    name: str = ""                 # 策略名称
     initial_capital: float = 100_000  # 初始资金
     position_size_pct: float = 0.2   # 单笔仓位占比
     max_positions: int = 10          # 最大持仓数
@@ -53,3 +53,15 @@ class StrategyConfig:
     def __post_init__(self):
         if self.name == "":
             self.name = "默认策略"
+
+    def to_v2_parameters(self) -> dict[str, float | int]:
+        """Expose execution settings without coupling legacy code to V2 internals."""
+        return {
+            "initial_capital": self.initial_capital,
+            "position_size_pct": self.position_size_pct,
+            "max_positions": self.max_positions,
+            "stop_loss_pct": self.stop_loss_pct,
+            "take_profit_pct": self.take_profit_pct,
+            "commission_rate": self.commission_rate,
+            "slippage": self.slippage,
+        }

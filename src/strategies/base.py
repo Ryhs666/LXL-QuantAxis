@@ -248,3 +248,16 @@ class BaseStrategy(ABC):
     @property
     def name(self) -> str:
         return self.config.name
+
+    def v2_manifest(self) -> dict:
+        """Return a minimal V2-compatible manifest for legacy strategy instances."""
+        version = str(getattr(self, "VERSION", "1.0.0"))
+        if version.isdigit():
+            version = f"{version}.0.0"
+        return {
+            "strategy_id": f"legacy.{self._strategy_key.lower()}",
+            "version": version,
+            "name": self.name,
+            "source": "legacy",
+            "data_requirements": ["open", "high", "low", "close", "volume"],
+        }

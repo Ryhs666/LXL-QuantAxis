@@ -207,6 +207,16 @@ class PluginManager:
     def list_factors(self) -> List[str]:
         return sorted(self._factors.keys())
 
+    def get_v2_strategy_registry(self):
+        """Expose legacy plugins through the versioned V2 strategy contract."""
+        from src.lxl_quantaxis.strategy.legacy import get_legacy_strategy_registry
+
+        return get_legacy_strategy_registry()
+
+    def get_v2_strategy_spec(self, name: str, version: str = None):
+        """Resolve an existing plugin name to a V2 StrategySpec."""
+        return self.get_v2_strategy_registry().get(f"legacy.{name}", version)
+
     def unload_strategy(self, name: str):
         """热卸载"""
         self._strategies.pop(name, None)
