@@ -231,7 +231,8 @@ class BacktestEngine:
                  token_validator=None,
                  legacy_backtest_mode: bool = None,
                  random_seed: int = 0,
-                 fill_model=None):  # 陷阱4: Token过期检查回调
+                 fill_model=None,
+                 risk_policy_chain=None):  # 陷阱4: Token过期检查回调
         self.initial_capital = initial_capital
         self.commission_rate = commission_rate
         self.slippage = slippage
@@ -254,6 +255,7 @@ class BacktestEngine:
         self.legacy_backtest_mode = legacy_backtest_mode
         self.random_seed = random_seed
         self.fill_model = fill_model
+        self.risk_policy_chain = risk_policy_chain
         self._risk_signals = []  # 风控产生的信号记录
         self._fill_stats = {"attempted": 0, "filled": 0, "cancelled": 0}
 
@@ -491,6 +493,7 @@ class BacktestEngine:
             random_seed=self.random_seed,
         )
         signals_log = []
+        risk_decisions = []
 
         for bar in event_loop.bars():
             i = bar.index
@@ -503,6 +506,20 @@ class BacktestEngine:
             for scheduled in event_loop.due(i):
                 fill = fill_model.fill(scheduled, row)
                 if fill is None:
+                    continue
+                risk_decision = self._evaluate_pre_trade(fill, row, position_size_pct)
+                risk_decisions.append(risk_decision)
+                if not risk_decision.approved:
+                    self._risk_signals.append({
+                        "date": date,
+                        "action": "RISK_REJECT",
+                        "symbol": fill.signal.symbol,
+                        "reason": risk_decision.reason,
+                        "policy": next(
+                            (item.policy_id for item in risk_decision.decisions if not item.approved),
+                            "unknown",
+                        ),
+                    })
                     continue
                 record = self._apply_next_bar_fill(fill, position_size_pct)
                 if record is not None:
@@ -566,6 +583,7 @@ class BacktestEngine:
             "metrics": self._calc_metrics(),
             "execution_semantics": "next_bar_open",
             "random_seed": self.random_seed,
+            "risk_decisions": risk_decisions,
         }
         if self.risk:
             result["risk_report"] = self.risk.report()
@@ -601,6 +619,41 @@ class BacktestEngine:
                 qty = signal.quantity if signal.quantity > 0 else self.portfolio.positions[short_key]["qty"]
                 return self.portfolio.cover_short(signal.symbol, price, qty, date, self.commission_rate)
         return None
+
+    def _evaluate_pre_trade(self, fill, row, position_size_pct: float):
+        from src.lxl_quantaxis.risk.policies import LegacyRiskPolicy
+        from src.lxl_quantaxis.risk.pre_trade import OrderIntent, PortfolioRiskSnapshot, RiskPolicyChain
+
+        signal = fill.signal
+        price = float(fill.price)
+        max_cost = self.portfolio.total_value * position_size_pct
+        quantity = signal.quantity if signal.quantity > 0 else int(max_cost / price / 100) * 100
+        positions = {
+            key.removeprefix("SHORT_"): value["qty"] * value.get("last_price", value["avg_cost"])
+            for key, value in self.portfolio.positions.items()
+        }
+        peak = float(getattr(self.risk, "peak_equity", self.portfolio.total_value))
+        chain = self.risk_policy_chain
+        if chain is None:
+            policies = (LegacyRiskPolicy(self.risk),) if self.risk is not None else ()
+            chain = RiskPolicyChain(policies)
+        order = OrderIntent(
+            order_id=f"bt-{fill.signal_available_at.isoformat()}-{signal.symbol}-{signal.action}",
+            action=signal.action,
+            symbol=signal.symbol,
+            quantity=quantity,
+            price=price,
+            average_daily_volume=float(row.get("volume", 0.0)),
+        )
+        snapshot = PortfolioRiskSnapshot(
+            equity=self.portfolio.total_value,
+            cash=self.portfolio.cash,
+            peak_equity=peak,
+            position_values=positions,
+            sector_values={},
+            kill_switch=False,
+        )
+        return chain.evaluate(order, snapshot)
 
     def _market_rejects(self, signal: Signal, history: pd.DataFrame, index: int) -> bool:
         if not self.use_market_filter or signal.action != "BUY" or index < 60:

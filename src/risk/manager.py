@@ -169,6 +169,12 @@ class RiskManager:
             return False, f"熔断中: {self.circuit_reason}"
         return True, ""
 
+    def as_v2_policy(self):
+        """Expose this manager as a versioned pre-trade policy adapter."""
+        from src.lxl_quantaxis.risk.policies import LegacyRiskPolicy
+
+        return LegacyRiskPolicy(self)
+
     def get_drawdown(self) -> float:
         """当前回撤比例"""
         if self.peak_equity <= 0:

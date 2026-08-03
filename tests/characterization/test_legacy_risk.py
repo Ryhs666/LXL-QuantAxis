@@ -24,9 +24,8 @@ class _TriggeredCircuitBreaker:
 
 
 class TestLegacyRiskOrdering(unittest.TestCase):
-    @unittest.expectedFailure
     def test_active_circuit_breaker_rejects_buy_before_fill(self):
-        """Known C-02: the legacy engine records risk after executing BUY."""
+        """C-02 regression: an active circuit breaker rejects before execution."""
         engine = BacktestEngine(
             commission_rate=0.0,
             slippage=0.0,
