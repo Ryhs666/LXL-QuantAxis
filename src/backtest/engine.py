@@ -190,6 +190,30 @@ class Portfolio:
             "total_value": round(self.total_value, 2),
         })
 
+    def to_immutable_ledger(self, currency: str = "CNY"):
+        """Replay legacy long fills into the V2 append-only accounting ledger."""
+        from datetime import datetime
+        from decimal import Decimal
+
+        from src.lxl_quantaxis.portfolio import FillSide, PortfolioLedger, TradeFill
+
+        ledger = PortfolioLedger(Decimal(str(self.initial_capital)), currency)
+        for index, trade in enumerate(self.trade_log):
+            action = trade.get("action")
+            if action not in {"BUY", "SELL"}:
+                raise ValueError("legacy short trades require the future margin-ledger adapter")
+            ledger = ledger.post_fill(TradeFill(
+                fill_id=f"legacy-{index}",
+                executed_at=datetime.fromisoformat(str(trade["date"])),
+                symbol=str(trade["symbol"]),
+                side=FillSide.BUY if action == "BUY" else FillSide.SELL,
+                quantity=int(trade["quantity"]),
+                price=Decimal(str(trade["price"])),
+                fee=Decimal(str(trade.get("fee", 0))),
+                currency=currency,
+            ))
+        return ledger
+
 
 class BacktestEngine:
     """事件驱动回测引擎"""

@@ -40,9 +40,8 @@ class TestLegacyBacktestTiming(unittest.TestCase):
 
 
 class TestLegacyMetricTypes(unittest.TestCase):
-    @unittest.expectedFailure
     def test_domain_metrics_are_numeric(self):
-        """Known M-07: domain metrics currently contain display strings."""
+        """M-07 regression: domain metrics remain numeric until presentation."""
         metrics = calc_all_metrics(
             daily_values=[
                 {"date": "2024-01-02", "total_value": 100_000.0},

@@ -13,9 +13,9 @@ import math
 from typing import List, Dict
 
 
-def calc_all_metrics(daily_values: List[dict],
-                     trade_log: List[dict],
-                     initial_capital: float) -> dict:
+def _calc_legacy_metrics(daily_values: List[dict],
+                         trade_log: List[dict],
+                         initial_capital: float) -> dict:
     """
     计算全部绩效指标
 
@@ -155,3 +155,53 @@ def _std(values: List[float]) -> float:
     mean = sum(values) / len(values)
     variance = sum((x - mean) ** 2 for x in values) / (len(values) - 1)
     return math.sqrt(variance)
+
+
+def calc_all_metrics(daily_values: List[dict],
+                     trade_log: List[dict],
+                     initial_capital: float) -> dict:
+    """Return domain metrics as numbers; presentation formatting is separate."""
+    if not daily_values:
+        return {}
+    from src.lxl_quantaxis.backtest.performance import calculate_performance
+
+    metrics = calculate_performance(daily_values, trade_log, initial_capital)
+    return {
+        "初始资金": round(metrics.initial_capital, 2),
+        "最终权益": round(metrics.final_equity, 2),
+        "总收益率": round(metrics.total_return * 100, 6),
+        "年化收益率": round(metrics.annual_return * 100, 6),
+        "夏普比率": round(metrics.sharpe_ratio, 6),
+        "索提诺比率": round(metrics.sortino_ratio, 6),
+        "最大回撤": round(metrics.max_drawdown * 100, 6),
+        "最大回撤区间": f"{metrics.max_drawdown_start} ~ {metrics.max_drawdown_end}",
+        "卡尔玛比率": round(metrics.calmar_ratio, 6),
+        "交易次数": metrics.trade_count,
+        "卖出次数": metrics.closed_trade_count,
+        "盈利次数": metrics.wins,
+        "亏损次数": metrics.losses,
+        "最大连续亏损": metrics.max_consecutive_losses,
+        "胜率": round(metrics.win_rate * 100, 6),
+        "平均盈利": round(metrics.average_win, 6),
+        "平均亏损": round(metrics.average_loss, 6),
+        "盈亏比": metrics.payoff_ratio,
+        "盈利因子": metrics.profit_factor,
+    }
+
+
+def format_metrics_for_display(metrics: dict) -> dict:
+    """Compatibility adapter for legacy UI labels and units."""
+    display = dict(metrics)
+    for key in ("总收益率", "年化收益率", "最大回撤"):
+        if key in display:
+            display[key] = f"{float(display[key]):+.2f}%"
+    if "胜率" in display:
+        display["胜率"] = f"{float(display['胜率']):.1f}%"
+    for key in ("平均盈利", "平均亏损"):
+        if key in display:
+            display[key] = f"¥{float(display[key]):+,.2f}"
+    for key in ("盈亏比", "盈利因子"):
+        if key in display:
+            value = float(display[key])
+            display[key] = "∞" if math.isinf(value) else f"{value:.2f}"
+    return display
