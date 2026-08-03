@@ -2,6 +2,15 @@
 
 个人量化交易平台 — 15策略 · 18因子 · 5500+ A股 · AI驱动
 
+## V2.0 架构升级状态
+
+V2.0 已进入“审计基线与架构决策”阶段。本阶段仅固化现状、风险和迁移原则，不改变现有运行行为。
+
+- [当前架构审计](docs/audit/current-architecture-review.md)
+- [ADR-0001：采用模块化单体](docs/adr/0001-modular-monolith.md)
+- [ADR-0002：分离研究面与交易面](docs/adr/0002-research-trading-separation.md)
+- [ADR-0003：采用 Point-in-Time 数据语义](docs/adr/0003-point-in-time-data.md)
+
 ## 快速开始
 
 ```bash
