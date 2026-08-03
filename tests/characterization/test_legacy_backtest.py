@@ -11,9 +11,8 @@ from tests.fixtures.market_bars import daily_bars
 
 
 class TestLegacyBacktestTiming(unittest.TestCase):
-    @unittest.expectedFailure
     def test_fill_occurs_after_signal_data_is_available(self):
-        """Known C-01: close(t) signal currently fills at close(t)."""
+        """C-01 regression: close(t) signals fill after their availability time."""
         bars = daily_bars()
         engine = BacktestEngine(
             commission_rate=0.0,

@@ -8,6 +8,8 @@
 4. 记录每笔模拟交易的完整生命周期
 """
 
+import os
+
 import pandas as pd
 from typing import Optional, List, Dict
 from datetime import datetime
@@ -202,7 +204,10 @@ class BacktestEngine:
                  use_impact_cost: bool = True,
                  use_limit_order: bool = False,
                  impact_coefficient: float = 0.1,
-                 token_validator=None):  # 陷阱4: Token过期检查回调
+                 token_validator=None,
+                 legacy_backtest_mode: bool = None,
+                 random_seed: int = 0,
+                 fill_model=None):  # 陷阱4: Token过期检查回调
         self.initial_capital = initial_capital
         self.commission_rate = commission_rate
         self.slippage = slippage
@@ -218,11 +223,25 @@ class BacktestEngine:
             from src.risk.manager import RiskManager
             self.risk = RiskManager(initial_capital=initial_capital)
         self.token_validator = token_validator  # 陷阱4
+        if legacy_backtest_mode is None:
+            legacy_backtest_mode = os.environ.get("LEGACY_BACKTEST_MODE", "").strip().lower() in {
+                "1", "true", "yes", "on"
+            }
+        self.legacy_backtest_mode = legacy_backtest_mode
+        self.random_seed = random_seed
+        self.fill_model = fill_model
         self._risk_signals = []  # 风控产生的信号记录
         self._fill_stats = {"attempted": 0, "filled": 0, "cancelled": 0}
 
     def run(self, strategy, data: pd.DataFrame,
             position_size_pct: float = 0.2) -> dict:
+        """Run with next-bar fills by default; legacy semantics are comparison-only."""
+        if self.legacy_backtest_mode:
+            return self._run_legacy(strategy, data, position_size_pct)
+        return self._run_next_bar(strategy, data, position_size_pct)
+
+    def _run_legacy(self, strategy, data: pd.DataFrame,
+                    position_size_pct: float = 0.2) -> dict:
         """
         执行回测
 
@@ -428,6 +447,152 @@ class BacktestEngine:
             result["risk_logs"] = self.risk.get_recent_logs(20)
             result["risk_signals"] = self._risk_signals
         return result
+
+    def _run_next_bar(self, strategy, data: pd.DataFrame,
+                      position_size_pct: float = 0.2) -> dict:
+        """Run point-in-time bars and execute close-derived signals next open."""
+        from src.audit.TradeAudit import audit
+        from src.lxl_quantaxis.backtest import BacktestEventLoop, DataPortal
+        from src.lxl_quantaxis.backtest.execution import NextBarOpenFillModel
+
+        self.portfolio = Portfolio(self.initial_capital)
+        self._risk_signals = []
+        portal = DataPortal(data)
+        event_loop = BacktestEventLoop(portal)
+        fill_model = self.fill_model or NextBarOpenFillModel(
+            slippage=self.slippage,
+            use_impact_cost=self.use_impact_cost,
+            impact_coefficient=self.impact_coefficient,
+            use_limit_order=self.use_limit_order,
+            random_seed=self.random_seed,
+        )
+        signals_log = []
+
+        for bar in event_loop.bars():
+            i = bar.index
+            row = bar.row
+            date = str(row["date"])[:10]
+            if self.token_validator and i % 100 == 0:
+                self.token_validator()
+
+            filled_actions = []
+            for scheduled in event_loop.due(i):
+                fill = fill_model.fill(scheduled, row)
+                if fill is None:
+                    continue
+                record = self._apply_next_bar_fill(fill, position_size_pct)
+                if record is not None:
+                    filled_actions.append(fill.signal.action)
+                try:
+                    audit.log_decision(
+                        action=fill.signal.action,
+                        symbol=fill.signal.symbol,
+                        price=fill.price,
+                        quantity=record["quantity"] if record else 0,
+                        strategy=strategy.__class__.__name__,
+                        reason=fill.signal.reason,
+                        portfolio_value=self.portfolio.total_value,
+                    )
+                except Exception:
+                    pass
+
+            signal = strategy.on_bar(i, bar.history, self.portfolio)
+            if isinstance(signal, Signal):
+                if self._market_rejects(signal, bar.history, i):
+                    signals_log.append({
+                        "date": date,
+                        "action": "SKIP",
+                        "symbol": signal.symbol,
+                        "price": signal.price,
+                        "reason": "多因子择时过滤",
+                    })
+                else:
+                    scheduled = event_loop.schedule(signal, i)
+                    signals_log.append({
+                        "date": date,
+                        "action": signal.action,
+                        "symbol": signal.symbol,
+                        "price": signal.price,
+                        "reason": signal.reason,
+                        "available_at": bar.available_at.isoformat(),
+                        "earliest_execution_at": scheduled.eligible_at.isoformat() if scheduled else None,
+                    })
+            elif signal is not None:
+                signals_log.append(signal)
+
+            symbol = str(row.get("symbol", ""))
+            held_symbols = {key.removeprefix("SHORT_") for key in self.portfolio.positions}
+            if symbol:
+                held_symbols.add(symbol)
+            prices = {held_symbol: float(row["close"]) for held_symbol in held_symbols}
+            self.portfolio.mark_to_market(date, prices)
+            if self.risk:
+                self.risk.update_equity(self.portfolio.total_value)
+                if "BUY" in filled_actions and self.risk.circuit_triggered:
+                    self._risk_signals.append({
+                        "date": date,
+                        "action": "RISK_SKIP",
+                        "reason": f"熔断: {self.risk.circuit_reason}",
+                    })
+
+        self._fill_stats = dict(fill_model.stats)
+        result = {
+            "portfolio": self.portfolio,
+            "signals": signals_log,
+            "metrics": self._calc_metrics(),
+            "execution_semantics": "next_bar_open",
+            "random_seed": self.random_seed,
+        }
+        if self.risk:
+            result["risk_report"] = self.risk.report()
+            result["risk_logs"] = self.risk.get_recent_logs(20)
+            result["risk_signals"] = self._risk_signals
+        return result
+
+    def _apply_next_bar_fill(self, fill, position_size_pct: float):
+        signal = fill.signal
+        price = float(fill.price)
+        date = fill.executed_at.date().isoformat()
+        if signal.action == "BUY":
+            short_key = "SHORT_" + signal.symbol
+            if short_key in self.portfolio.positions:
+                qty = self.portfolio.positions[short_key]["qty"]
+                self.portfolio.cover_short(signal.symbol, price, qty, date, self.commission_rate)
+            max_cost = self.portfolio.total_value * position_size_pct
+            qty = signal.quantity if signal.quantity > 0 else int(max_cost / price / 100) * 100
+            return self.portfolio.buy(signal.symbol, price, qty, date, self.commission_rate) if qty > 0 else None
+        if signal.action == "SELL" and signal.symbol in self.portfolio.positions:
+            qty = signal.quantity if signal.quantity > 0 else self.portfolio.positions[signal.symbol]["qty"]
+            return self.portfolio.sell(signal.symbol, price, qty, date, self.commission_rate)
+        if signal.action == "SHORT":
+            if signal.symbol in self.portfolio.positions:
+                qty = self.portfolio.positions[signal.symbol]["qty"]
+                self.portfolio.sell(signal.symbol, price, qty, date, self.commission_rate)
+            max_cost = self.portfolio.total_value * position_size_pct
+            qty = signal.quantity if signal.quantity > 0 else int(max_cost / price / 100) * 100
+            return self.portfolio.short(signal.symbol, price, qty, date, self.commission_rate) if qty > 0 else None
+        if signal.action == "COVER":
+            short_key = "SHORT_" + signal.symbol
+            if short_key in self.portfolio.positions:
+                qty = signal.quantity if signal.quantity > 0 else self.portfolio.positions[short_key]["qty"]
+                return self.portfolio.cover_short(signal.symbol, price, qty, date, self.commission_rate)
+        return None
+
+    def _market_rejects(self, signal: Signal, history: pd.DataFrame, index: int) -> bool:
+        if not self.use_market_filter or signal.action != "BUY" or index < 60:
+            return False
+        try:
+            from src.factors.definitions import FactorCalculator
+
+            factors = FactorCalculator(history).compute_all().iloc[-1]
+            score = (
+                float(factors.get("ma_slope", 0.5))
+                + float(factors.get("ma_alignment", 0.5))
+                + float(factors.get("price_position", 0.5))
+            ) / 3
+            return score < 0.4
+        except Exception:
+            return False
 
     @staticmethod
     def slippage_sensitivity(strategy, data: "pd.DataFrame",
