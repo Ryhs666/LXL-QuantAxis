@@ -8,35 +8,35 @@
 """
 
 import os
-import hashlib
-from datetime import datetime, timedelta, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
 from functools import wraps
 
-import jwt
 import bcrypt
-from flask import request, jsonify, g
+import jwt
+from flask import g, jsonify, request
 
+from src.lxl_quantaxis.core.security.rate_limit import InMemoryRateLimiter
+from src.lxl_quantaxis.core.security.settings import (
+    SecurityConfigurationError,
+    SecuritySettings,
+)
 
 # ═══════════════════════════════════════════════════════════
 # JWT 配置
 # ═══════════════════════════════════════════════════════════
 
-# 优先从环境变量读取，否则用基于机器特征生成的 key
-_SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
-if not _SECRET_KEY:
-    # 用项目路径 + 固定盐值生成确定性 secret（不同机器不同密钥）
-    _machine_id = os.path.abspath(__file__).encode()
-    _SECRET_KEY = hashlib.sha256(
-        _machine_id + b"quantaxis-jwt-salt-2024"
-    ).hexdigest()
-
+SECURITY_SETTINGS = SecuritySettings.from_env()
+_SECRET_KEY = SECURITY_SETTINGS.jwt_secret
 JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 24
+ACCESS_TOKEN_EXPIRE_HOURS = SECURITY_SETTINGS.access_token_expire_hours
+_AUTH_RATE_LIMITER = InMemoryRateLimiter()
 
 
 # ═══════════════════════════════════════════════════════════
 # 密码安全
 # ═══════════════════════════════════════════════════════════
+
 
 def hash_password(password: str) -> str:
     """
@@ -102,6 +102,7 @@ def validate_password_strength(password: str) -> tuple:
 # JWT 令牌
 # ═══════════════════════════════════════════════════════════
 
+
 def generate_token(user_id: int) -> str:
     """
     生成 JWT access token。
@@ -112,7 +113,10 @@ def generate_token(user_id: int) -> str:
     返回:
         JWT 字符串（有效期 24 小时）
     """
-    now = datetime.now(timezone.utc)
+    if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id < 1:
+        raise ValueError("user_id must be a positive integer")
+
+    now = datetime.now(UTC)
     payload = {
         "user_id": user_id,
         "iat": now,
@@ -129,12 +133,82 @@ def _decode_token(token: str) -> dict:
         jwt.ExpiredSignatureError — token 过期
         jwt.InvalidTokenError — token 无效
     """
-    return jwt.decode(token, _SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    return jwt.decode(
+        token,
+        _SECRET_KEY,
+        algorithms=[JWT_ALGORITHM],
+        options={"require": ["user_id", "iat", "exp"]},
+    )
+
+
+def auth_rate_limited(scope: str):
+    """Limit public authentication endpoints by address and username."""
+    if not scope:
+        raise ValueError("scope cannot be empty")
+
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            payload = request.get_json(silent=True) or {}
+            username = str(payload.get("username", "")).strip().lower()
+            remote_address = request.remote_addr or "unknown"
+            key = f"{scope}:{remote_address}:{username}"
+            decision = _AUTH_RATE_LIMITER.check(
+                key,
+                limit=SECURITY_SETTINGS.auth_rate_limit_attempts,
+                window_seconds=SECURITY_SETTINGS.auth_rate_limit_window_seconds,
+            )
+            if not decision.allowed:
+                response = jsonify({"error": "请求过于频繁，请稍后重试"})
+                response.headers["Retry-After"] = str(decision.retry_after_seconds)
+                return response, 429
+            return f(*args, **kwargs)
+
+        return decorated
+
+    return decorator
 
 
 # ═══════════════════════════════════════════════════════════
 # Flask 装饰器
 # ═══════════════════════════════════════════════════════════
+
+
+def _authenticate_request(required_role: str | None = None):
+    auth_header = request.headers.get("Authorization", "")
+    scheme, separator, token = auth_header.partition(" ")
+    if separator != " " or scheme.lower() != "bearer" or not token.strip():
+        return jsonify({"error": "缺少认证令牌，请先登录"}), 401
+
+    try:
+        payload = _decode_token(token.strip())
+        user_id = payload["user_id"]
+        if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id < 1:
+            raise jwt.InvalidTokenError("invalid user_id claim")
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "登录已过期，请重新登录"}), 401
+    except (jwt.InvalidTokenError, KeyError, TypeError):
+        return jsonify({"error": "令牌无效，请重新登录"}), 401
+
+    from src.database import SessionLocal
+    from src.database.models import User
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(id=user_id).first()
+        if not user or not user.is_active:
+            return jsonify({"error": "账户不存在或已被禁用"}), 401
+        if required_role and user.role != required_role:
+            return jsonify({"error": "需要管理员权限"}), 403
+        g.user_id = user.id
+        g.user_role = user.role
+    except Exception:
+        return jsonify({"error": "认证服务暂时不可用"}), 503
+    finally:
+        db.close()
+
+    return None
+
 
 def token_required(f):
     """
@@ -150,26 +224,12 @@ def token_required(f):
     验证通过后，g.user_id 被设置为当前用户的 ID。
     验证失败返回 401 JSON 错误。
     """
+
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = None
-
-        # 从 Authorization header 提取 Bearer token
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-
-        if not token:
-            return jsonify({"error": "缺少认证令牌，请先登录"}), 401
-
-        try:
-            payload = _decode_token(token)
-            g.user_id = payload["user_id"]
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "登录已过期，请重新登录"}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({"error": "令牌无效，请重新登录"}), 401
-
+        error_response = _authenticate_request()
+        if error_response is not None:
+            return error_response
         return f(*args, **kwargs)
 
     return decorated
@@ -188,89 +248,82 @@ def admin_required(f):
         def api_admin_users():
             ...
     """
+
     @wraps(f)
     def decorated(*args, **kwargs):
-        # 先验证 token
-        token = None
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-
-        if not token:
-            return jsonify({"error": "缺少认证令牌"}), 401
-
-        try:
-            payload = _decode_token(token)
-            user_id = payload["user_id"]
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "登录已过期"}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({"error": "令牌无效"}), 401
-
-        # 检查管理员角色
-        from src.database import SessionLocal
-        from src.database.models import User
-
-        db = SessionLocal()
-        try:
-            user = db.query(User).filter_by(id=user_id).first()
-            if not user or user.role != "admin":
-                return jsonify({"error": "需要管理员权限"}), 403
-            g.user_id = user_id
-            g.user_role = user.role
-        finally:
-            db.close()
-
+        error_response = _authenticate_request(required_role="admin")
+        if error_response is not None:
+            return error_response
         return f(*args, **kwargs)
 
     return decorated
 
 
-def create_admin_if_not_exists():
+def create_admin_if_not_exists(
+    session_factory=None,
+    environ: Mapping[str, str] | None = None,
+) -> bool:
     """
     确保系统中至少有一个管理员账号。
 
-    用户名: admin
-    密码: 从环境变量 ADMIN_PASSWORD 读取，默认 admin123456
-
-    仅在 users 表中不存在 admin 用户时创建。
-    首次登录后请立即修改密码。
+    仅在系统不存在管理员、且显式提供 ADMIN_PASSWORD 时创建。
+    生产环境缺少引导密码会终止启动；任何日志都不会输出密码。
     """
-    import os as _os
-    from src.database import SessionLocal
+    settings = SecuritySettings.from_env(environ)
+    source = os.environ if environ is None else environ
+    if session_factory is None:
+        from src.database import SessionLocal
+
+        session_factory = SessionLocal
     from src.database.models import User
 
-    db = SessionLocal()
+    db = session_factory()
     try:
-        existing = db.query(User).filter_by(username="admin").first()
-        if existing:
-            # 确保角色是 admin
-            if existing.role != "admin":
-                existing.role = "admin"
-                db.commit()
-            return
+        existing_admin = db.query(User).filter_by(role="admin").first()
+        if existing_admin:
+            return False
 
-        admin_password = _os.environ.get("ADMIN_PASSWORD", "admin123456")
-        from src.auth import hash_password
+        admin_password = source.get("ADMIN_PASSWORD", "")
+        if not admin_password:
+            message = "ADMIN_PASSWORD is required for the one-time administrator bootstrap"
+            if settings.is_production:
+                raise SecurityConfigurationError(message)
+            print(f"[Auth] {message}; no administrator was created")
+            return False
+
+        valid, validation_message = validate_password_strength(admin_password)
+        if not valid or len(admin_password) < 12:
+            raise SecurityConfigurationError(
+                f"ADMIN_PASSWORD must be at least 12 characters and contain letters and numbers ({validation_message})"
+            )
+
+        admin_username = source.get("ADMIN_USERNAME", "admin").strip()
+        if len(admin_username) < 2:
+            raise SecurityConfigurationError("ADMIN_USERNAME must contain at least 2 characters")
+        username_collision = db.query(User).filter_by(username=admin_username).first()
+        if username_collision:
+            raise SecurityConfigurationError("ADMIN_USERNAME already belongs to a non-admin account")
 
         admin = User(
-            username="admin",
+            username=admin_username,
             password_hash=hash_password(admin_password),
-            email="admin@quantaxis.local",
+            email=source.get("ADMIN_EMAIL", "admin@quantaxis.local").strip(),
             role="admin",
         )
         db.add(admin)
         db.commit()
-        print(f"[Auth] 管理员账号已创建: admin / {admin_password}")
-    except Exception as e:
+        print(f"[Auth] 管理员账号已创建: {admin_username}")
+        return True
+    except Exception:
         db.rollback()
-        print(f"[Auth] 创建管理员失败: {e}")
+        raise
     finally:
         db.close()
 
 
 class SessionExpired(Exception):
     """Token 过期异常 — 用于中断正在执行的异步任务 (陷阱4)"""
+
     pass
 
 
@@ -285,11 +338,13 @@ def create_token_checker(token: str):
         checker = create_token_checker(token)
         BacktestEngine(token_validator=checker).run(...)
     """
+
     def check():
         try:
             _decode_token(token)
         except jwt.ExpiredSignatureError:
-            raise SessionExpired("Token 已过期，回测任务中断")
+            raise SessionExpired("Token 已过期，回测任务中断") from None
         except jwt.InvalidTokenError:
-            raise SessionExpired("Token 无效，回测任务中断")
+            raise SessionExpired("Token 无效，回测任务中断") from None
+
     return check

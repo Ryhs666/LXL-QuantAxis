@@ -46,9 +46,8 @@ class TestLegacyWebAuthorization(unittest.TestCase):
             with self.subTest(function=function):
                 self.assertIn(guard, matrix[function])
 
-    @unittest.expectedFailure
     def test_sensitive_write_routes_require_authentication(self):
-        """Known C-03: sensitive write routes currently lack guards."""
+        """C-03 regression: every sensitive write route has an auth guard."""
         matrix = _route_auth_matrix()
         sensitive = (
             "api_metrics_update",

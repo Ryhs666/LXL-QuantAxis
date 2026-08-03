@@ -61,9 +61,12 @@ def get_db():
         db.close()
 
 
-def init_db():
+def init_db() -> bool:
     """
-    创建所有表（首次启动时调用），并确保管理员账号存在。
+    创建所有表，并在显式配置引导密码时创建首个管理员。
+
+    返回 True 表示本次创建了管理员。生产环境配置不安全时抛出异常，
+    不会使用默认密码继续启动。
 
     用法:
         from src.database import init_db
@@ -76,4 +79,4 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     # 确保管理员账号存在
     from src.auth import create_admin_if_not_exists
-    create_admin_if_not_exists()
+    return create_admin_if_not_exists()

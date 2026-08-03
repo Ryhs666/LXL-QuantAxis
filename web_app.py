@@ -8,6 +8,16 @@ os.chdir(os.path.dirname(__file__))
 
 from flask import Flask, request, jsonify, Response, stream_with_context
 from datetime import datetime
+from src.lxl_quantaxis.core.security.settings import (
+    SecurityConfigurationError,
+    SecuritySettings,
+)
+
+SECURITY_SETTINGS = SecuritySettings.from_env()
+if SECURITY_SETTINGS.is_production:
+    raise SecurityConfigurationError(
+        "web_app.py is a local-only legacy server; use web_modern.py in production"
+    )
 
 app = Flask(__name__)
 
@@ -990,4 +1000,4 @@ if __name__ == '__main__':
     print("  ║  http://127.0.0.1:5000              ║")
     print("  ║  浏览器打开上面的地址                ║")
     print("  ╚══════════════════════════════════════╝\n")
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host=SECURITY_SETTINGS.bind_host, port=5000, debug=False)

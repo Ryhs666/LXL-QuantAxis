@@ -13,9 +13,14 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, request, jsonify, render_template, redirect
+from flask import Flask, request, jsonify, render_template, redirect, g
 from datetime import datetime, timedelta
-from src.auth import token_required, admin_required
+from src.auth import (
+    SECURITY_SETTINGS,
+    admin_required,
+    auth_rate_limited,
+    token_required,
+)
 from src.lxl_quantaxis.version import __version__
 
 app = Flask(__name__)
@@ -638,10 +643,12 @@ await renderPanel(id);
 }
 
 // ═══════════════ API ═══════════════
-async function api(url,data=null){
+async function api(url,data=null,method=null){
 const headers={'Content-Type':'application/json'};
 if(AUTH.token)headers['Authorization']='Bearer '+AUTH.token;
-const o=data?{method:'POST',headers,body:JSON.stringify(data)}:{method:'GET',headers};
+const requestMethod=method||(data!==null?'POST':'GET');
+const o={method:requestMethod,headers};
+if(data!==null&&requestMethod!=='GET')o.body=JSON.stringify(data);
 const r=await fetch(url,o);
 if(r.status===401){doLogout();throw new Error('未登录');}
 return r.json();
@@ -1076,7 +1083,7 @@ r.backtests.forEach(b=>{h+=`<tr><td>${b.symbol}</td><td>${b.sharpe?.toFixed(2)||
 h+='</tbody></table>';}
 h+='</div>';document.getElementById('bankDetail').innerHTML=h;}catch(e){}
 }
-async function deleteStrategy(sid){if(confirm('确定删除这个策略?')){await api('/api/strategy_bank/'+sid,{method:'DELETE'});loadStrategyBank();}}
+async function deleteStrategy(sid){if(confirm('确定删除这个策略?')){await api('/api/strategy_bank/'+sid,null,'DELETE');loadStrategyBank();}}
 function buildDatabase(){return `<div class="card"><h3>🗄️ 数据库管理</h3><div class="sub">SQLite统一行情库 · 30,000+条数据 · 替代CSV缓存</div>
 <div class="frow"><button class="btn btn-p" onclick="loadDatabase()">刷新</button>
 <button class="btn btn-o" onclick="migrateData()">从CSV迁移数据</button></div>
@@ -1097,7 +1104,7 @@ document.getElementById('dbContent').innerHTML=h;}catch(e){}
 }
 async function migrateData(){
 document.getElementById('dbContent').innerHTML='<span class="info">迁移中...</span>';
-try{const r=await api('/api/database/migrate');
+try{const r=await api('/api/database/migrate',{},'POST');
 document.getElementById('dbContent').innerHTML=`<span class="ok">迁移完成! 处理了${r.count||0}个文件</span>`;
 loadDatabase();}catch(e){document.getElementById('dbContent').innerHTML=`<span class="err">${e}</span>`}
 }
@@ -1325,6 +1332,7 @@ def api_metrics():
     return metrics.render(), 200, {"Content-Type": "text/plain; charset=utf-8"}
 
 @app.route('/api/metrics/update', methods=['POST'])
+@admin_required
 def api_metrics_update():
     """更新监控指标"""
     d = request.json or {}
@@ -1371,8 +1379,12 @@ def api_status():
 # ============================================================
 
 @app.route('/api/register', methods=['POST'])
+@auth_rate_limited("register")
 def api_register():
     """用户注册 — 所有人可注册，默认角色为 user"""
+    if not SECURITY_SETTINGS.registration_enabled:
+        return jsonify({"error": "当前环境未开放自主注册"}), 403
+
     d = request.json or {}
     username = d.get("username", "").strip()
     password = d.get("password", "")
@@ -1410,14 +1422,15 @@ def api_register():
             "user_id": user.id,
             "message": "注册成功，请登录",
         })
-    except Exception as e:
+    except Exception:
         db.rollback()
-        return jsonify({"error": f"注册失败: {e}"}), 500
+        return jsonify({"error": "注册失败，请稍后重试"}), 500
     finally:
         db.close()
 
 
 @app.route('/api/login', methods=['POST'])
+@auth_rate_limited("login")
 def api_login():
     """用户登录 — 返回 JWT access_token"""
     d = request.json or {}
@@ -1454,8 +1467,8 @@ def api_login():
             "access_token": token,
             "user": user.to_dict(),
         })
-    except Exception as e:
-        return jsonify({"error": f"登录失败: {e}"}), 500
+    except Exception:
+        return jsonify({"error": "登录失败，请稍后重试"}), 500
     finally:
         db.close()
 
@@ -2519,6 +2532,7 @@ def api_recommend():
         return jsonify({"error": str(e)})
 
 @app.route('/api/ai/recommend_chat', methods=['POST'])
+@token_required
 def api_ai_recommend_chat():
     """AI推荐讨论 — 用户描述思路,AI分析匹配策略和可行性"""
     msg = request.json.get("message","")
@@ -2543,6 +2557,7 @@ def api_ai_recommend_chat():
         return jsonify({"reply": f"AI未连接: {e}"})
 
 @app.route('/api/ai/chat', methods=['POST'])
+@token_required
 def api_ai_chat():
     msg = request.json.get("message","")
     try:
@@ -2553,6 +2568,7 @@ def api_ai_chat():
         return jsonify({"reply": f"AI未连接: {e}. 请在桌面应用左侧菜单 > AI > 配置AI 中设置API密钥。"})
 
 @app.route('/api/ai/review')
+@token_required
 def api_ai_review():
     try:
         from src.ai.assistants import AITradeReviewer
@@ -2561,6 +2577,7 @@ def api_ai_review():
         return jsonify({"error": str(e)})
 
 @app.route('/api/ai/market')
+@token_required
 def api_ai_market():
     try:
         from src.ai.assistants import AIMarketAnalyst
@@ -2569,6 +2586,7 @@ def api_ai_market():
         return jsonify({"error": str(e)})
 
 @app.route('/api/ai/create_strategy', methods=['POST'])
+@token_required
 def api_ai_create_strategy():
     """AI策略战法: 用户用自然语言描述思路→AI解析→构建策略→回测"""
     d = request.json
@@ -2648,7 +2666,7 @@ def api_ai_create_strategy():
                 conditions=strategy_def.get("conditions", []),
                 logic=logic, threshold=threshold,
                 description=strategy_def.get("explanation", ""),
-                tags="AI生成"
+                tags="AI生成", owner_id=g.user_id,
             )
             if saved_id:
                 bank.save_backtest(saved_id, sym, r["metrics"])
@@ -2672,6 +2690,7 @@ def api_ai_create_strategy():
         return jsonify({"error": str(e)})
 
 @app.route('/api/factor_backtest', methods=['POST'])
+@token_required
 def api_factor_backtest():
     d = request.json
     try:
@@ -2697,6 +2716,7 @@ def api_factor_backtest():
         return jsonify({"error": str(e)})
 
 @app.route('/api/database/status')
+@token_required
 def api_database_status():
     try:
         from src.data.market_db import market_db
@@ -2707,7 +2727,8 @@ def api_database_status():
     except Exception as e:
         return jsonify({"error": str(e)})
 
-@app.route('/api/database/migrate')
+@app.route('/api/database/migrate', methods=['POST'])
+@admin_required
 def api_database_migrate():
     import os, pandas as pd
     from src.data.market_db import market_db
@@ -2726,8 +2747,10 @@ def api_database_migrate():
     return jsonify({"count": count, "ok": True})
 
 @app.route('/api/strategy_bank', methods=['GET','POST'])
+@token_required
 def api_strategy_bank():
     from src.data.strategy_store import bank
+    include_unowned = g.user_role == "admin"
     if request.method == 'POST':
         d = request.json
         sid = bank.save_strategy(
@@ -2737,20 +2760,42 @@ def api_strategy_bank():
             threshold=float(d.get("threshold",3.0)),
             description=d.get("description",""),
             tags=d.get("tags",""),
+            owner_id=g.user_id,
         )
         return jsonify({"id": sid, "ok": True})
     else:
         tag = request.args.get("tag")
-        strategies = bank.list_strategies(tag=tag)
-        return jsonify({"strategies": strategies, "stats": bank.stats()})
+        strategies = bank.list_strategies(
+            tag=tag,
+            owner_id=g.user_id,
+            include_unowned=include_unowned,
+        )
+        return jsonify({
+            "strategies": strategies,
+            "stats": bank.stats(
+                owner_id=g.user_id,
+                include_unowned=include_unowned,
+            ),
+        })
 
 @app.route('/api/strategy_bank/<int:sid>', methods=['GET','DELETE'])
+@token_required
 def api_strategy_detail(sid):
     from src.data.strategy_store import bank
+    include_unowned = g.user_role == "admin"
     if request.method == 'DELETE':
-        bank.delete_strategy(sid)
+        if not bank.delete_strategy(
+            sid,
+            owner_id=g.user_id,
+            include_unowned=include_unowned,
+        ):
+            return jsonify({"error": "策略不存在"}), 404
         return jsonify({"ok": True})
-    s = bank.get_strategy(sid)
+    s = bank.get_strategy(
+        sid,
+        owner_id=g.user_id,
+        include_unowned=include_unowned,
+    )
     if not s: return jsonify({"error": "策略不存在"}), 404
     bts = bank.get_backtests(strategy_id=sid)
     return jsonify({"strategy": s, "backtests": bts})
@@ -3087,20 +3132,22 @@ if __name__ == '__main__':
     from src.database import init_db
     init_db()
 
+    bind_host = SECURITY_SETTINGS.bind_host
+    browser_host = '127.0.0.1' if bind_host in {'0.0.0.0', '::'} else bind_host
+
     def open_browser():
         time.sleep(1)
-        webbrowser.open('http://127.0.0.1:5000')
+        webbrowser.open(f'http://{browser_host}:5000')
     threading.Thread(target=open_browser, daemon=True).start()
 
     print("\n  ╔══════════════════════════════════════╗")
     print(f"  ║  QuantAxis v{__version__}  Web 量化平台        ║")
-    print("  ║  http://127.0.0.1:5000              ║")
+    print(f"  ║  http://{browser_host}:5000              ║")
     print("  ║  实时行情推送已启用 (10只模拟股票)     ║")
     print("  ╚══════════════════════════════════════╝\n")
 
     # 使用 SocketIO 启动（支持 WebSocket），降级到 Flask 原生
     if socketio:
-        socketio.run(app, host='0.0.0.0', port=5000, debug=False, allow_unsafe_werkzeug=True)
+        socketio.run(app, host=bind_host, port=5000, debug=False, allow_unsafe_werkzeug=True)
     else:
-        app.run(host='0.0.0.0', port=5000, debug=False)
-    app.run(host='0.0.0.0', port=5000, debug=False)
+        app.run(host=bind_host, port=5000, debug=False)

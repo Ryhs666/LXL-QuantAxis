@@ -60,6 +60,24 @@ python web_modern.py    # Web 平台 (Flask, http://127.0.0.1:5000)
 - Base URL: `https://api.deepseek.com` (或其他OpenAI兼容接口)
 - Model: `deepseek-chat`
 
+## 安全启动配置
+
+本地开发默认只监听 `127.0.0.1`，JWT 使用进程级随机密钥，重启后旧登录令牌失效。
+首次创建管理员时必须显式设置强密码，系统不会再创建默认密码或在日志中打印密码。
+
+生产环境启动前必须配置：
+
+```powershell
+$env:LXL_ENV = "production"
+$env:JWT_SECRET_KEY = "至少32位的随机密钥"
+$env:ADMIN_PASSWORD = "首次启动使用的至少12位强密码"
+python web_modern.py
+```
+
+管理员创建后可移除 `ADMIN_PASSWORD`。生产环境默认关闭自主注册；如确需开放，显式设置
+`LXL_REGISTRATION_ENABLED=true`。对外监听也必须显式设置 `LXL_BIND_HOST`，默认仍为
+`127.0.0.1`。
+
 ## 数据
 
 首次使用会自动下载A股全市场股票列表和行情数据。
