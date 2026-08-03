@@ -13,6 +13,8 @@ from typing import List
 import pandas as pd
 
 from src.backtest.symbols import normalize_market
+from src.lxl_quantaxis.core import Instant
+from src.lxl_quantaxis.data.providers import PointInTimeRecord
 
 
 # ============================================================
@@ -57,6 +59,27 @@ class MarketDataProvider(ABC):
             DataFrame with columns: date, open, high, low, close, volume
         """
         ...
+
+    def fetch_point_in_time(
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: str | None = None,
+        use_cache: bool = True,
+        *,
+        as_of: Instant,
+    ) -> tuple[PointInTimeRecord, ...]:
+        """Expose legacy frames through the V2 PIT adapter without changing fetch()."""
+        from src.lxl_quantaxis.data.providers.market import map_legacy_market_rows
+
+        frame = self.fetch(symbol, start_date, end_date=end_date, use_cache=use_cache)
+        return map_legacy_market_rows(
+            frame.to_dict(orient="records"),
+            provider=self.name,
+            market=self.market,
+            symbol=symbol,
+            ingested_at=as_of,
+        )
 
 
 # ============================================================

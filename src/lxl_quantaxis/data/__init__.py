@@ -2,6 +2,8 @@
 
 from src.lxl_quantaxis.data.catalog import Dataset, DatasetSnapshot
 from src.lxl_quantaxis.data.contracts import StorageKey, StorageMetadata, StoragePort
+from src.lxl_quantaxis.data.providers import DataKind, PointInTimeProvider, PointInTimeRecord, RevisionHistory
+from src.lxl_quantaxis.data.quality import QualityGate, QualityMode
 from src.lxl_quantaxis.data.storage import (
     DataRoot,
     DataRootConfigurationError,
@@ -11,6 +13,7 @@ from src.lxl_quantaxis.data.storage import (
 )
 
 __all__ = [
+    "DataKind",
     "DataRoot",
     "DataRootConfigurationError",
     "Dataset",
@@ -18,6 +21,11 @@ __all__ = [
     "LegacyCsvAdapter",
     "LegacySqliteAdapter",
     "LocalStorageAdapter",
+    "PointInTimeProvider",
+    "PointInTimeRecord",
+    "QualityGate",
+    "QualityMode",
+    "RevisionHistory",
     "StorageKey",
     "StorageMetadata",
     "StoragePort",
