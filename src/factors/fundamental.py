@@ -219,3 +219,29 @@ class FundamentalFactors:
 
 # 全局实例
 fundamental = FundamentalFactors()
+
+
+def get_v2_fundamental_registry():
+    """Map legacy fundamental fields to explicit V2 factor specifications."""
+    from src.lxl_quantaxis.factor import FactorCategory, FactorRegistry, FactorSpec
+
+    registry = FactorRegistry()
+    definitions = (
+        ("fundamental.roe", FactorCategory.QUALITY, "Return on equity", True),
+        ("fundamental.pe", FactorCategory.VALUE, "Price to earnings", False),
+        ("fundamental.pb", FactorCategory.VALUE, "Price to book", False),
+        ("fundamental.revenue_growth", FactorCategory.QUALITY, "Revenue growth", True),
+    )
+    for factor_id, category, description, higher_is_better in definitions:
+        registry = registry.register(
+            FactorSpec(
+                factor_id=factor_id,
+                version="1.0.0",
+                category=category,
+                description=description,
+                lookback=1,
+                availability_lag=1,
+                higher_is_better=higher_is_better,
+            )
+        )
+    return registry

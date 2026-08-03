@@ -463,3 +463,10 @@ FACTOR_REGISTRY = {
     "hammer":            Factor("hammer",       "pattern",     "锤子线检测", {}),
     "engulfing":         Factor("engulfing",    "pattern",     "吞没形态检测", {}),
 }
+
+
+def get_v2_factor_registry():
+    """Expose legacy definitions through the versioned V2 adapter."""
+    from src.lxl_quantaxis.factor import LegacyFactorAdapter
+
+    return LegacyFactorAdapter().registry()
