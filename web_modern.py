@@ -21,7 +21,49 @@ from src.auth import (
     auth_rate_limited,
     token_required,
 )
+from src.lxl_quantaxis.data.contracts import StorageKey
+from src.lxl_quantaxis.data.storage import DataRoot, LegacyCsvAdapter, LegacySqliteAdapter, LocalStorageAdapter
 from src.lxl_quantaxis.version import __version__
+
+
+def _current_data_root():
+    """Resolve paths at call time so environment overrides remain testable."""
+    return DataRoot.from_sources()
+
+
+def _users_database_path():
+    adapter = LegacySqliteAdapter(_current_data_root())
+    try:
+        return adapter.read_path("users.db")
+    except FileNotFoundError:
+        return adapter.writable_path("users.db")
+
+
+def _data_file_path(name):
+    root = _current_data_root()
+    key = StorageKey(name)
+    storage = LocalStorageAdapter(root)
+    try:
+        return storage.path_for_read(key)
+    except FileNotFoundError:
+        return storage.path_for_write(key)
+
+
+def _cache_file_path(symbol, market="A股", period="daily"):
+    adapter = LegacyCsvAdapter(_current_data_root())
+    key = adapter.key(symbol, market, period)
+    try:
+        return adapter.storage.path_for_read(key)
+    except FileNotFoundError:
+        return adapter.storage.path_for_write(key)
+
+
+def _cache_directory():
+    root = _current_data_root()
+    for candidate in (path / "cache" for path in root.read_paths):
+        if candidate.is_dir():
+            return candidate
+    return root.cache_path
 
 app = Flask(__name__)
 
@@ -343,7 +385,7 @@ def _daily_data_refresh():
     import time as _t
     import requests as _req
     import pandas as _pd
-    cache_dir = "D:/trading_data/cache"
+    cache_dir = _cache_directory()
 
     while True:
         now = datetime.now()
@@ -1978,7 +2020,7 @@ def api_signals():
     import sqlite3
     symbol = request.args.get('symbol', '000001')
     try:
-        conn = sqlite3.connect("D:/trading_data/users.db")
+        conn = sqlite3.connect(_users_database_path())
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT symbol, action, price, reason, created_at, score FROM user_trade_logs WHERE symbol=? ORDER BY created_at DESC LIMIT 30",
@@ -2007,7 +2049,7 @@ def api_kline_simple():
 
     data = []
     # 从统一CSV读取
-    csv_path = 'D:/trading_data/ohlcv_daily.csv'
+    csv_path = _data_file_path("ohlcv_daily.csv")
     if os.path.exists(csv_path):
         try:
             df = pd.read_csv(csv_path)
@@ -2026,7 +2068,7 @@ def api_kline_simple():
 
     # 降级：从缓存CSV读取
     if not data:
-        cache_file = f'D:/trading_data/cache/A股_{symbol}_daily.csv'
+        cache_file = _cache_file_path(symbol)
         if os.path.exists(cache_file):
             try:
                 df = pd.read_csv(cache_file)
@@ -2052,7 +2094,7 @@ def api_kline_poll():
     period = request.args.get('period', '1min')
 
     # 1. 从CSV读取历史日线，拆为日内K线
-    cache_file = f"D:/trading_data/cache/A股_{symbol}_daily.csv"
+    cache_file = _cache_file_path(symbol)
     hist_bars = []
     if os.path.exists(cache_file):
         try:
@@ -2093,7 +2135,7 @@ def api_kline_poll():
     signals = []
     try:
         import sqlite3
-        conn = sqlite3.connect("D:/trading_data/users.db")
+        conn = sqlite3.connect(_users_database_path())
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT symbol, action, price, reason, created_at FROM user_trade_logs WHERE symbol=? ORDER BY created_at DESC LIMIT 20",
@@ -2243,7 +2285,7 @@ def api_daily_brief():
 
     today = datetime.now().strftime("%Y-%m-%d")
     repo = TradeRepository()
-    cache_dir = os.path.join(os.environ.get("TRADING_DATA_DIR", "D:/trading_data"), "cache")
+    cache_dir = _cache_directory()
 
     # 1. 持仓分析 — 从缓存读OHLCV
     positions = repo.find_open_positions()
@@ -2723,7 +2765,7 @@ def api_database_status():
         meta = market_db.get_meta_summary()
         total_rows = sum(m["row_count"] for m in meta)
         return jsonify({"stocks": meta, "total_stocks": len(meta), "total_rows": total_rows,
-                       "db_path": "D:/trading_data/market_data.db"})
+                       "db_path": str(_data_file_path("market_data.db"))})
     except Exception as e:
         return jsonify({"error": str(e)})
 
@@ -2732,7 +2774,7 @@ def api_database_status():
 def api_database_migrate():
     import os, pandas as pd
     from src.data.market_db import market_db
-    cache_dir = "D:/trading_data/cache"
+    cache_dir = _cache_directory()
     count = 0
     if os.path.exists(cache_dir):
         for f in os.listdir(cache_dir):
@@ -2839,7 +2881,7 @@ def api_game_init():
     """初始化游戏账户 — 100万模拟金"""
     from flask import g
     import sqlite3
-    conn = sqlite3.connect("D:/trading_data/users.db")
+    conn = sqlite3.connect(_users_database_path())
     conn.row_factory = sqlite3.Row
     try:
         row = conn.execute("SELECT * FROM game_accounts WHERE user_id=?", (g.user_id,)).fetchone()
@@ -2859,7 +2901,7 @@ def api_game_portfolio():
     from flask import g
     import sqlite3, os, pandas as pd
 
-    conn = sqlite3.connect("D:/trading_data/users.db")
+    conn = sqlite3.connect(_users_database_path())
     conn.row_factory = sqlite3.Row
     try:
         acct = conn.execute("SELECT * FROM game_accounts WHERE user_id=?", (g.user_id,)).fetchone()
@@ -2887,7 +2929,7 @@ def api_game_portfolio():
                     holdings[sym]["total_cost"] = 0.0
 
         active = {k: v for k, v in holdings.items() if v["quantity"] > 0}
-        cache_dir = "D:/trading_data/cache"
+        cache_dir = _cache_directory()
         market_value = 0.0
         result_holdings = []
         for sym, h in active.items():
@@ -2943,7 +2985,7 @@ def api_game_trade():
     if direction not in ("BUY", "SELL"):
         return jsonify({"error": "direction 必须是 BUY 或 SELL"}), 400
 
-    conn = sqlite3.connect("D:/trading_data/users.db")
+    conn = sqlite3.connect(_users_database_path())
     conn.row_factory = sqlite3.Row
     try:
         acct = conn.execute("SELECT * FROM game_accounts WHERE user_id=?", (g.user_id,)).fetchone()
@@ -2955,7 +2997,7 @@ def api_game_trade():
         # price=0 使用最新收盘价
         if price == 0:
             import pandas as pd, os
-            cache_file = f"D:/trading_data/cache/A股_{symbol}_daily.csv"
+            cache_file = _cache_file_path(symbol)
             if os.path.exists(cache_file):
                 df = pd.read_csv(cache_file)
                 price = float(df["close"].iloc[-1]) if len(df) > 0 else 0
@@ -3042,7 +3084,7 @@ def api_game_reset():
     """重置模拟账户 — 清除所有持仓订单，恢复100万现金"""
     from flask import g
     import sqlite3
-    conn = sqlite3.connect("D:/trading_data/users.db")
+    conn = sqlite3.connect(_users_database_path())
     try:
         conn.execute("DELETE FROM game_orders WHERE user_id=?", (g.user_id,))
         conn.execute("UPDATE game_accounts SET cash=1000000.0 WHERE user_id=?", (g.user_id,))
@@ -3064,7 +3106,7 @@ def api_game_rank():
     if _rank_cache["data"] is not None and (now - _rank_cache["time"]) < 300:
         return jsonify(_rank_cache["data"])
 
-    conn = sqlite3.connect("D:/trading_data/users.db")
+    conn = sqlite3.connect(_users_database_path())
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute("""
@@ -3074,7 +3116,7 @@ def api_game_rank():
         """).fetchall()
 
         rankings = []
-        cache_dir = "D:/trading_data/cache"
+        cache_dir = _cache_directory()
         for r in rows:
             orders = conn.execute(
                 "SELECT symbol,direction,price,quantity FROM game_orders WHERE user_id=? ORDER BY trade_time",

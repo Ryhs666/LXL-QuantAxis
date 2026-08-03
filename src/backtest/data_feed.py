@@ -15,16 +15,20 @@
   - 增量更新
 """
 
-import pandas as pd
+import io
 import os
 import sys
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict
 from pathlib import Path
+from typing import Dict, List, Optional
 
-from src.backtest.symbols import normalize_market, normalize_symbol
-from src.backtest.providers import CallableDataProvider, ProviderRegistry
+import pandas as pd
+
 from src.backtest.market_metadata import get_market_metadata
+from src.backtest.providers import CallableDataProvider, ProviderRegistry
+from src.backtest.symbols import normalize_market, normalize_symbol
+from src.lxl_quantaxis.data.contracts import StorageKey
+from src.lxl_quantaxis.data.storage import DataRoot, LocalStorageAdapter
 
 # ---- Windows 中文编码修复 ----
 if sys.platform == "win32":
@@ -46,20 +50,14 @@ def resolve_data_root() -> Path:
       2. TRADING_DATA_DIR env var (legacy)
       3. ~/.lxl_quantaxis (default)
     """
-    for var in ("QUANT_DATA_DIR", "TRADING_DATA_DIR"):
-        val = os.environ.get(var)
-        if val:
-            return Path(val)
-    return Path.home() / ".lxl_quantaxis"
+    return DataRoot.from_sources().path
 
 
-DATA_ROOT = str(resolve_data_root())
-CACHE_DIR = os.path.join(DATA_ROOT, "cache")
-INDEX_CACHE = os.path.join(CACHE_DIR, "indices")
-STOCK_CACHE = os.path.join(CACHE_DIR, "stocks")
-
-os.makedirs(INDEX_CACHE, exist_ok=True)
-os.makedirs(STOCK_CACHE, exist_ok=True)
+_DATA_ROOT = DataRoot.from_sources()
+DATA_ROOT = str(_DATA_ROOT.path)
+CACHE_DIR = str(_DATA_ROOT.cache_path)
+INDEX_CACHE = str(_DATA_ROOT.cache_path / "indices")
+STOCK_CACHE = str(_DATA_ROOT.cache_path / "stocks")
 
 # A 股常用指数
 A_INDEX_MAP = {
@@ -80,19 +78,29 @@ A_INDEX_MAP = {
 class DataCache:
     """本地 CSV 缓存，避免重复网络请求"""
 
-    def __init__(self, cache_dir: str = CACHE_DIR):
-        self.cache_dir = cache_dir
+    def __init__(self, cache_dir: str | Path | None = None):
+        if cache_dir is None:
+            self._storage = LocalStorageAdapter(DataRoot.from_sources())
+            self._prefix = "cache"
+            self.cache_dir = str(self._storage.root.cache_path)
+        else:
+            self._storage = LocalStorageAdapter(Path(cache_dir))
+            self._prefix = ""
+            self.cache_dir = str(Path(cache_dir))
+
+    def _cache_key(self, symbol: str, market: str, period: str = "daily") -> StorageKey:
+        filename = f"{market}_{symbol}_{period}.csv"
+        return StorageKey(f"{self._prefix}/{filename}" if self._prefix else filename)
 
     def _cache_path(self, symbol: str, market: str, period: str = "daily") -> str:
-        filename = f"{market}_{symbol}_{period}.csv"
-        return os.path.join(self.cache_dir, filename)
+        return str(self._storage.path_for_write(self._cache_key(symbol, market, period)))
 
     def load(self, symbol: str, market: str, period: str = "daily") -> pd.DataFrame | None:
-        path = self._cache_path(symbol, market, period)
-        if not os.path.exists(path):
+        key = self._cache_key(symbol, market, period)
+        if not self._storage.exists(key):
             return None
         try:
-            df = pd.read_csv(path, parse_dates=["date"])
+            df = pd.read_csv(io.BytesIO(self._storage.read_bytes(key)), parse_dates=["date"])
             df = df[["date", "open", "high", "low", "close", "volume"]]
             df = df.sort_values("date").reset_index(drop=True)
             # 检查数据新鲜度（超过 1 天则算过期）
@@ -108,18 +116,26 @@ class DataCache:
             return None
 
     def save(self, df: pd.DataFrame, symbol: str, market: str, period: str = "daily"):
-        path = self._cache_path(symbol, market, period)
-        df.to_csv(path, index=False)
+        content = df.to_csv(index=False).encode("utf-8")
+        self._storage.write_bytes(self._cache_key(symbol, market, period), content)
 
     def clear_expired(self, days: int = 30):
         """清除超过 N 天未更新的缓存"""
         cutoff = datetime.now() - timedelta(days=days)
-        for f in os.listdir(self.cache_dir):
-            fp = os.path.join(self.cache_dir, f)
-            if os.path.isfile(fp) and f.endswith(".csv"):
-                mtime = datetime.fromtimestamp(os.path.getmtime(fp))
-                if mtime < cutoff:
-                    os.remove(fp)
+        prefix = StorageKey(self._prefix) if self._prefix else None
+        for key in self._storage.iter_keys(prefix):
+            if not key.value.endswith(".csv"):
+                continue
+            modified_at = self._storage.metadata(key).modified_at.replace(tzinfo=None)
+            if modified_at < cutoff:
+                self._storage.delete(key)
+
+    def iter_keys(self) -> tuple[StorageKey, ...]:
+        prefix = StorageKey(self._prefix) if self._prefix else None
+        return tuple(key for key in self._storage.iter_keys(prefix) if key.value.endswith(".csv"))
+
+    def read_bytes(self, key: StorageKey) -> bytes:
+        return self._storage.read_bytes(key)
 
 
 # 全局缓存实例
@@ -591,21 +607,19 @@ def download_all_default(start_date: str = "2020-01-01", verbose: bool = True) -
 def get_data_summary() -> pd.DataFrame:
     """查看缓存数据概览"""
     rows = []
-    if os.path.exists(CACHE_DIR):
-        for f in sorted(os.listdir(CACHE_DIR)):
-            if f.endswith(".csv"):
-                path = os.path.join(CACHE_DIR, f)
-                try:
-                    df = pd.read_csv(path, parse_dates=["date"])
-                    rows.append({
-                        "文件": f,
-                        "行数": len(df),
-                        "起始日期": str(df["date"].min())[:10],
-                        "结束日期": str(df["date"].max())[:10],
-                        "大小(KB)": round(os.path.getsize(path) / 1024, 1),
-                    })
-                except Exception:
-                    pass
+    for key in _cache.iter_keys():
+        try:
+            content = _cache.read_bytes(key)
+            df = pd.read_csv(io.BytesIO(content), parse_dates=["date"])
+            rows.append({
+                "文件": key.value.rsplit("/", 1)[-1],
+                "行数": len(df),
+                "起始日期": str(df["date"].min())[:10],
+                "结束日期": str(df["date"].max())[:10],
+                "大小(KB)": round(len(content) / 1024, 1),
+            })
+        except Exception:
+            pass
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 

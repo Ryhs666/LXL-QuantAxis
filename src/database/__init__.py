@@ -1,21 +1,28 @@
 """
 数据库引擎 & 会话管理 (SQLAlchemy)
 
-使用 SQLite (D:/trading_data/users.db)，后续可无缝迁移至 MySQL/PostgreSQL。
+默认使用 DataRoot 下的 SQLite users.db，后续可无缝迁移至 MySQL/PostgreSQL。
 更换数据库只需修改 DATABASE_URL 即可，无需改动任何业务代码。
 """
 
 import os
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-from src.config import config
+from src.lxl_quantaxis.data.storage import DataRoot, LegacySqliteAdapter
 
 # 数据库文件路径（SQLite），可从环境变量覆盖
+_DATA_ROOT = DataRoot.from_sources()
+_SQLITE_ADAPTER = LegacySqliteAdapter(_DATA_ROOT)
+DATABASE_PATH: Path | None = _SQLITE_ADAPTER.preferred_path("users.db")
 DATABASE_URL = os.environ.get(
     "QUANT_DATABASE_URL",
-    f"sqlite:///{config.data_dir}/users.db"
+    f"sqlite:///{DATABASE_PATH.as_posix()}",
 )
+if "QUANT_DATABASE_URL" in os.environ:
+    DATABASE_PATH = None
 
 # SQLite 需要 check_same_thread=False 以支持多线程
 _connect_args = {}
@@ -72,8 +79,9 @@ def init_db() -> bool:
         from src.database import init_db
         init_db()
     """
-    # 确保数据目录存在
-    os.makedirs(config.data_dir, exist_ok=True)
+    # 显式初始化时才创建数据目录；导入模块不会写磁盘。
+    if DATABASE_PATH is not None:
+        DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     # 创建所有模型对应的表
     from src.database import models  # noqa: F401 — 触发模型注册
     Base.metadata.create_all(bind=engine)
