@@ -47,7 +47,7 @@ class PrintRedirector:
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("LXL·QuantAxis v5.0")
+        self.root.title("LXL·QuantAxis v2.0")
         self.root.geometry("1300x900")
         self.root.minsize(1100, 720)
         self.root.configure(bg=BG0)
@@ -73,7 +73,7 @@ class App:
                 bg=BG0, fg=ACC).pack(side=tk.LEFT)
         tk.Label(logo, text="·QuantAxis", font=("Segoe UI", 20, "bold"),
                 bg=BG0, fg="#f1f5f9").pack(side=tk.LEFT)
-        tk.Label(logo, text="v2.1", font=FST, bg=BG0, fg=TX3).pack(side=tk.LEFT, padx=(8,0))
+        tk.Label(logo, text="v2.0", font=FST, bg=BG0, fg=TX3).pack(side=tk.LEFT, padx=(8,0))
 
         self.sts = tk.Label(tb, text="", font=FST, bg=BG0, fg=GRN)
         self.sts.pack(side=tk.RIGHT, padx=(0,8))
@@ -108,16 +108,32 @@ class App:
                 ("系统状态", self._status),
             ]),
             ("TRADING", "交易实战", GRN, [
-                ("🔍 快速验证", self._quick_backtest_dialog),
-                ("🩺 个股诊断", self._diagnosis_dialog),
-                ("💡 智能推荐", self._recommend_dialog),
-                ("🧬 因子策略", self._factor_strategy_dialog),
-                ("🔄 每日快扫", self._daily_scan_gui),
+                ("快速验证", self._quick_backtest_dialog),
+                ("个股诊断", self._diagnosis_dialog),
+                ("智能推荐", self._recommend_dialog),
+                ("因子策略", self._factor_strategy_dialog),
+                ("每日快扫", self._daily_scan_gui),
                 ("交易日志 (终端)", self._journal),
             ]),
             ("STRATEGIES", "策略研发", ACC2, [
                 ("策略管理中枢", self._strategy_hub),
-                ("🧪 AI策略战法", self._strategy_lab),
+                ("AI策略战法", self._strategy_lab),
+            ]),
+            ("ALPHA MEMORY", "Alpha 记忆 (v2.0)", CYN, [
+                ("Alpha 信号面板", self._alpha_panel),
+                ("因子健康度", self._factor_health),
+                ("策略银行 (统一)", self._unified_bank),
+                ("IC 衰减状态", self._ic_decay_status),
+            ]),
+            ("PAPER BROKER", "纸面券商 (v2.0)", PNK, [
+                ("券商状态", self._broker_status),
+                ("订单管理", self._broker_orders),
+                ("自动交易开关", self._broker_auto_trade),
+            ]),
+            ("DATA", "数据中心 (v2.0)", YLW, [
+                ("宏观数据面板", self._macro_panel),
+                ("基本面数据", self._fundamental_panel),
+                ("行业分类", self._industry_panel),
             ]),
             ("INDEX", "指数增强", YLW, [
                 ("指数估值快照", self._valuation),
@@ -133,7 +149,7 @@ class App:
             ]),
             ("ANALYSIS", "分析复盘", PNK, [
                 ("绩效分析报告", self._analysis),
-                ("因子体系 (18)", self._factors),
+                ("因子体系 (28)", self._factors),
             ]),
         ]
 
@@ -146,7 +162,7 @@ class App:
             for label, cmd in btns:
                 self._side_btn(si, label, cmd, accent)
 
-        tk.Label(si, text="LXL·QuantAxis v5.0", font=FST, bg=BG1, fg=TX3).pack(pady=(20,10))
+        tk.Label(si, text="LXL·QuantAxis v2.0", font=FST, bg=BG1, fg=TX3).pack(pady=(20,10))
 
         # ── 右侧 ──
         rt = tk.Frame(main, bg=BG0)
@@ -258,7 +274,7 @@ class App:
     def _welcome(self):
         """欢迎信息"""
         self._log("╔══════════════════════════════════════╗")
-        self._log("║   LXL·QuantAxis v5.0  量化交易平台   ║")
+        self._log("║   LXL·QuantAxis v2.0  量化交易平台   ║")
         self._log("║   输入 help 查看可用命令             ║")
         self._log("╚══════════════════════════════════════╝")
 
@@ -299,12 +315,30 @@ class App:
         if not c: return
         self._log(f"\n$ {c}")
         cm = {
-            "help": lambda: self._log("  命令: status batch valuation rotation optimize ai bank factory clear exit"),
+            "help": lambda: self._log(
+                "  命令: status batch valuation rotation optimize ai bank factory clear exit\n"
+                "  v2.0: alpha health bank2 ic broker orders autotrade macro pe <code>"
+            ),
             "status": self._status, "batch": self._batch, "valuation": self._valuation,
             "rotation": self._rotation, "optimize": self._optimize, "ai": self._ai_brief,
             "ai-config": self._ai_cfg, "bank": self._bank, "factory": self._factory,
             "clear": self._clr, "exit": self.root.destroy,
+            # v2.0 命令
+            "alpha": lambda: self._bg(lambda: self._run_alpha_panel(), "ALPHA"),
+            "health": lambda: self._bg(lambda: self._run_factor_health(), "HEALTH"),
+            "bank2": lambda: self._bg(lambda: self._run_unified_bank(), "BANK2"),
+            "ic": lambda: self._bg(lambda: self._run_ic_decay_status(), "IC"),
+            "broker": lambda: self._bg(lambda: self._run_broker_status(), "BROKER"),
+            "orders": lambda: self._bg(lambda: self._run_broker_orders(), "ORDERS"),
+            "autotrade": self._broker_auto_trade,
+            "macro": lambda: self._bg(lambda: self._run_macro_panel(), "MACRO"),
+            "pe": lambda: self._bg(lambda: self._run_pe_lookup("600519"), "PE"),
         }
+        # 特殊: pe <code> 查询
+        if c.lower().startswith("pe "):
+            sym = c[3:].strip()
+            self._bg(lambda s=sym: self._run_pe_lookup(s), "PE_LOOKUP")
+            return
         if c.lower() in cm: cm[c.lower()]()
         else: self._log(f"  未知。help=命令列表")
 
@@ -1256,9 +1290,256 @@ class App:
         __import__('src.analysis.reports',fromlist=['run_report']).run_report()
 
     def _factors(self):
-        self._log("\n[因子体系] 18 Factors:")
+        self._log("\n[因子体系] 28 Factors:")
         from src.factors.definitions import FACTOR_REGISTRY
         for n,f in FACTOR_REGISTRY.items(): self._log(f"  [{f.category}] {n}  {f.description}")
+
+    # ═══ v2.0 新增: Alpha Memory / Paper Broker / Data Center ═══
+
+    def _alpha_panel(self):
+        """Alpha 信号记忆面板"""
+        self._bg(lambda: self._run_alpha_panel(), "ALPHA_MEMORY")
+
+    def _run_alpha_panel(self):
+        self._log("\n═══ Alpha 信号记忆 ═══")
+        try:
+            from src.ai.alpha_store import alpha_store
+            stats = alpha_store.stats()
+            self._log(f"  总信号: {stats['total_signals']}")
+            self._log(f"  股票数: {stats['unique_symbols']}")
+            self._log(f"  因子数: {stats['unique_factors']}")
+            self._log(f"  结果分布: {stats['outcomes']}")
+
+            self._log("\n── 因子胜率 TOP 10 ──")
+            wr = alpha_store.get_win_rate_by_factor(days=90)
+            for name, s in sorted(wr.items(), key=lambda x: x[1].get("total", 0), reverse=True)[:10]:
+                tag = "+" if s["win_rate"] >= 0.5 else "-"
+                self._log(f"  {tag} {name}: {s['total']}信号 胜率{s['win_rate']:.0%} 均PnL{s['avg_pnl_pct']:.2%}")
+
+            self._log("\n── 市场状态矩阵 ──")
+            regime_labels = {0: "高波动上涨", 1: "高波动下跌", 2: "低波动震荡", 3: "高波动反转"}
+            matrix = alpha_store.get_regime_performance_matrix(days=180)
+            for rid, s in sorted(matrix.items()):
+                label = regime_labels.get(rid, str(rid))
+                self._log(f"  [{label}] {s['total_signals']}信号 胜率{s['win_rate']:.0%} "
+                         f"均PnL{s['avg_pnl_pct']:.2%} 最佳:{s.get('best_factors',[])}")
+
+            self._log("\n── 最近 10 条信号 ──")
+            for r in alpha_store.get_recent(10):
+                outcome = r.get("outcome", "-") or "-"
+                self._log(f"  {r['date']} {r['symbol']} {r['factor_name']} "
+                         f"{r.get('signal_action','')} → {outcome}")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
+
+    def _factor_health(self):
+        """因子健康度评估"""
+        self._bg(lambda: self._run_factor_health(), "FACTOR_HEALTH")
+
+    def _run_factor_health(self):
+        self._log("\n═══ 因子健康度评估 ═══")
+        try:
+            from src.ai.alpha_store import alpha_store
+            health = alpha_store.get_factor_health()
+            for name, h in sorted(health.items(), key=lambda x: x[1].get("total", 0), reverse=True):
+                status_icon = {"strong": "[+]", "moderate": "[~]", "weak": "[-]", "stale": "[x]", "ineffective": "[x]"}
+                icon = status_icon.get(h["health"], "[?]")
+                stale = " STALE" if h["health"] == "stale" else ""
+                self._log(f"  {icon} {name}: {h['total']}信号 胜率{h['win_rate']:.0%} "
+                         f"{h['health'].upper()}{stale}")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
+
+    def _unified_bank(self):
+        """统一策略银行"""
+        self._bg(lambda: self._run_unified_bank(), "BANK")
+
+    def _run_unified_bank(self):
+        self._log("\n═══ 统一策略银行 ═══")
+        try:
+            from src.ai.bank_bridge import unified_bank
+            stats = unified_bank.stats()
+            self._log(f"  进化银行: {stats['evolution_bank']} | 用户银行: {stats['user_bank']} | 总计: {stats['total']}")
+            best = unified_bank.get_best(n=10)
+            self._log(f"\n── TOP 10 ──")
+            for i, s in enumerate(best, 1):
+                source_tag = "[E]" if s.get("source") == "evolution" else "[U]"
+                self._log(f"  {i}. {source_tag} {s.get('name','?')} (fitness={s.get('fitness',0):.2f})")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
+
+    def _ic_decay_status(self):
+        """IC 衰减状态"""
+        self._bg(lambda: self._run_ic_decay_status(), "IC_DECAY")
+
+    def _run_ic_decay_status(self):
+        self._log("\n═══ IC 衰减状态 ═══")
+        try:
+            from src.factors.definitions import FactorCalculator
+            from src.backtest.data_feed import get_data
+            data = get_data("601398", "A股", start_date="2024-06-01")
+            if data is not None and len(data) > 60:
+                calc = FactorCalculator(data)
+                for name in ["rsi_norm", "ma_deviation", "volume_ratio", "momentum_score"]:
+                    try:
+                        status = calc.compute_decay_curve(data, name)
+                        tag = "DECAY!" if status.get("decaying") else "OK"
+                        self._log(f"  [{tag}] {name}: IC={status.get('current_ic',0):.3f} "
+                                 f"streak={status.get('below_zero_streak',0)}d "
+                                 f"→ {status.get('recommendation','')}")
+                    except Exception:
+                        self._log(f"  [--] {name}: 计算失败")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
+
+    # ── Paper Broker ───────────────────────────────────
+
+    def _broker_status(self):
+        self._bg(lambda: self._run_broker_status(), "BROKER")
+
+    def _run_broker_status(self):
+        self._log("\n═══ Paper Broker 状态 ═══")
+        try:
+            from src.execution.paper_broker import paper_broker
+            s = paper_broker.stats()
+            self._log(f"  现金: ¥{s['cash']:,.2f}")
+            self._log(f"  初始资金: ¥{s['initial_cash']:,.2f}")
+            pnl_tag = "+" if s['pnl'] >= 0 else ""
+            self._log(f"  总盈亏: {pnl_tag}¥{s['pnl']:,.2f} ({s['pnl_pct']:+.2f}%)")
+            self._log(f"  待执行订单: {s['pending_orders']}")
+
+            # 当前持仓
+            try:
+                pos = paper_broker.get_positions()
+                if pos is not None and not pos.empty:
+                    self._log(f"\n── 当前持仓 ──")
+                    for _, r in pos.iterrows():
+                        self._log(f"  {r['symbol']} {r.get('name','')} x{r['quantity']} "
+                                 f"成本¥{r['avg_cost']:.2f}")
+                else:
+                    self._log("  持仓: 空")
+            except Exception:
+                self._log("  持仓: 查询失败")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
+
+    def _broker_orders(self):
+        self._bg(lambda: self._run_broker_orders(), "ORDERS")
+
+    def _run_broker_orders(self):
+        self._log("\n═══ 订单管理 ═══")
+        try:
+            from src.execution.paper_broker import OrderDB
+            db = OrderDB()
+            orders = db.load_all_orders(1, limit=20)
+            if not orders:
+                self._log("  暂无订单")
+                return
+            for o in orders:
+                status_icon = {"pending": "[ ]", "partial": "[~]", "filled": "[+]",
+                               "cancelled": "[x]", "rejected": "[!]"}.get(o.status, "[?]")
+                self._log(f"  {status_icon} {o.order_id[:8]}... {o.symbol} {o.action} "
+                         f"x{o.quantity} @{o.price:.2f} status={o.status}")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
+
+    def _broker_auto_trade(self):
+        """自动交易开关"""
+        self._log("\n═══ 自动纸面交易 ═══")
+        try:
+            from src.execution.bridge import bridge
+            current = bridge.auto_trade_enabled
+            new_state = not current
+            bridge.toggle_auto_trade(new_state)
+            self._log(f"  状态: {'ON (自动执行实时信号)' if new_state else 'OFF (仅记录信号)'}")
+            self._log(f"  缓存信号: {len(bridge.get_recent_signals())} 条")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
+
+    # ── Data Center ────────────────────────────────────
+
+    def _macro_panel(self):
+        self._bg(lambda: self._run_macro_panel(), "MACRO")
+
+    def _run_macro_panel(self):
+        self._log("\n═══ 宏观数据面板 ═══")
+        try:
+            from src.data.macro_fetchers import FETCHER_MAP, register_all_macro_fetchers
+            self._log(f"  已注册: {len(FETCHER_MAP)} 个宏观指标")
+            for code in FETCHER_MAP:
+                self._log(f"    {code}")
+
+            # 尝试获取最新 CPI
+            try:
+                from src.data.macro_fetchers import get_macro_data
+                df = get_macro_data("CN_CPI_YOY")
+                if df is not None and not df.empty:
+                    latest = df.iloc[-1]
+                    self._log(f"\n  最新 CPI: {latest['date']} → {latest['value']}%")
+            except Exception as e:
+                self._log(f"  CPI 获取: {e}")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
+
+    def _fundamental_panel(self):
+        self._bg(lambda: self._run_fundamental_panel(), "FUNDAMENTAL")
+
+    def _run_fundamental_panel(self):
+        self._log("\n═══ 基本面数据 ═══")
+        try:
+            from src.data.financials import financial_db
+            for symbol in ["600519", "000858", "601398"]:
+                needs = financial_db.needs_update(symbol)
+                tag = "需更新" if needs else "已最新"
+                pe = financial_db.get_pe_series(symbol)
+                pe_count = len(pe) if pe is not None else 0
+                self._log(f"  {symbol}: PE数据{pe_count}条 ({tag})")
+
+            self._log("\n  输入股票代码查看详细基本面:")
+            self._log("    示例: 在输入框输入 'pe 600519' 查询PE历史")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
+
+    def _industry_panel(self):
+        self._bg(lambda: self._run_industry_panel(), "INDUSTRY")
+
+    def _run_industry_panel(self):
+        self._log("\n═══ 申万行业分类 ═══")
+        try:
+            from src.data.stock_db import industry_classifier
+            ind = industry_classifier.get_industry("600519")
+            peers = industry_classifier.get_industry_peers("600519")
+            self._log(f"  600519(茅台) 行业: {ind or '未分类'}")
+            if peers:
+                self._log(f"  同行业标的 ({len(peers)}): {peers[:10]}...")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
+
+    def _run_pe_lookup(self, symbol: str):
+        """查询 PE/PB/ROE 历史"""
+        self._log(f"\n═══ 基本面查询: {symbol} ═══")
+        try:
+            from src.data.financials import financial_db
+            from src.data.stock_db import ensure_stock_db
+
+            name = ensure_stock_db().get_name(symbol) if ensure_stock_db().count() > 0 else symbol
+            self._log(f"  名称: {name}")
+
+            for label, series in [("PE", financial_db.get_pe_series(symbol)),
+                                   ("PB", financial_db.get_pb_series(symbol)),
+                                   ("ROE", financial_db.get_roe_series(symbol))]:
+                if series is not None and not series.empty:
+                    col = [c for c in series.columns if c != "date"][0]
+                    latest = series.iloc[-1]
+                    self._log(f"  {label}: {latest[col]:.2f} ({latest['date'].strftime('%Y-%m-%d') if hasattr(latest['date'], 'strftime') else str(latest['date'])[:10]})")
+                else:
+                    self._log(f"  {label}: 无数据 (可能需要下载)")
+
+            needs = financial_db.needs_update(symbol)
+            if needs:
+                self._log(f"\n  提示: 数据需要更新, 运行 download 下载行情后自动拉取")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
 
     # ═══ 新增: 快速验证 · 个股诊断 · 每日快扫 ═══
 
