@@ -24,6 +24,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.config import config as cfg
+from src.lxl_quantaxis.ai import CompletionResponse
 
 
 # ============================================================
@@ -166,6 +167,24 @@ class LLMClient:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": user_message})
         return self.chat_stream(messages)
+
+
+class LegacyLLMPort:
+    """Compatibility adapter exposing the legacy client through the V2 LLM port."""
+
+    def __init__(self, client: LLMClient):
+        self.client = client
+
+    def complete(self, *, prompt: str) -> CompletionResponse:
+        content = self.client.ask(prompt)
+        if content.startswith("❌"):
+            raise RuntimeError(content)
+        return CompletionResponse(
+            content=content,
+            model=self.client.model,
+            input_tokens=0,
+            output_tokens=0,
+        )
 
 
 # 全局客户端
