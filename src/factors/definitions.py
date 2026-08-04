@@ -516,6 +516,7 @@ FACTOR_REGISTRY = {
     "volume_ratio":      Factor("volume_ratio", "volume",      "量比(短/长)", {"short": 5, "long": 20}),
     "volume_trend":      Factor("volume_trend", "volume",      "量价配合健康度", {"period": 10}),
     "obv_divergence":    Factor("obv_divergence", "volume",    "OBV与价格背离检测", {"period": 20}),
+    "vol_exhaustion":    Factor("vol_exhaustion", "volume",    "量能耗尽反转因子(放量+动量衰减+日内反转)", {}),
     "hammer":            Factor("hammer",       "pattern",     "锤子线检测", {}),
     "engulfing":         Factor("engulfing",    "pattern",     "吞没形态检测", {}),
     # ── 情绪因子 (来自 SentimentAnalyzer) ──
