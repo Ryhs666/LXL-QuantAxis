@@ -194,8 +194,29 @@ class PaperBroker:
 
     def place_order(self, symbol: str, action: str, quantity: int,
                     price: float = 0.0, order_type: str = "market",
-                    strategy_name: str = "", reason: str = "") -> Order:
-        """下单"""
+                    strategy_name: str = "", reason: str = "",
+                    skip_risk_check: bool = False) -> Order:
+        """下单 (自动经过风控闸门校验)"""
+        # ── 风控闸门前置校验 ──
+        if not skip_risk_check:
+            from src.risk.gate import check_paper_order
+            side = "buy" if action.upper() == "BUY" else "sell"
+            ok, gate_reason = check_paper_order(
+                {"symbol": symbol, "quantity": quantity, "price": price if price > 0 else 1.0,
+                 "side": side, "action": action},
+                broker=self,
+            )
+            if not ok:
+                print(f"[PaperBroker] 订单被风控闸门拒绝: {gate_reason}")
+                rejected = Order(
+                    user_id=self.user_id, symbol=symbol, action=action,
+                    quantity=quantity, price=price, order_type=order_type,
+                    strategy_name=strategy_name, reason=reason,
+                    status="rejected",
+                )
+                self.order_db.save_order(rejected)
+                return rejected
+
         order = Order(
             user_id=self.user_id, symbol=symbol, action=action,
             quantity=quantity, price=price, order_type=order_type,
