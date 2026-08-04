@@ -7,23 +7,25 @@ __pycache__/
 dist/
 build/
 *.spec
+.pytest_cache/
 
 # IDE
 .idea/
 .vscode/
 *.swp
-*.swo
+.codex/
+.claude/
 
 # Data (user-specific)
 D:/trading_data/
-*.db
-*.csv
-!requirements.txt
+*.db-journal
+*.db-wal
+*.db-shm
 
 # Config (may contain API keys)
 ai_config.json
-config.json
 config.yaml
+config/best_params.json
 
 # OS
 .DS_Store
@@ -34,3 +36,13 @@ Desktop.ini
 *.log
 *.tmp
 _patch*.py
+
+# Environment
+.env
+.env.local
+
+# Charts/Reports output
+D:/trading_data/charts/
+D:/trading_data/reports/
+D:/trading_data/dashboards/
+D:/trading_data/journal/
