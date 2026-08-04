@@ -1,7 +1,7 @@
 """
 策略存储数据库 (v5.1)
 保存用户创建的策略、回测结果、复盘笔记
-存于 D:/trading_data/strategy_bank.db
+存于 $QUANT_DATA_DIR/strategy_bank.db
 """
 import os, sys, sqlite3, json
 from contextlib import contextmanager

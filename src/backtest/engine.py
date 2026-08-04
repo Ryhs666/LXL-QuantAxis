@@ -14,6 +14,9 @@ import pandas as pd
 from typing import Optional, List, Dict
 from datetime import datetime
 from src.models.strategy import Signal
+from src.lxl_quantaxis.core.logging import get_logger
+
+_log = get_logger("backtest.engine")
 
 
 class Portfolio:

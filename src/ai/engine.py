@@ -8,20 +8,18 @@ AI 引擎 — LLM 客户端
   - 量化专用 System Prompt
 
 配置方式:
-  设置环境变量:
-    AI_API_KEY=your_key
-    AI_BASE_URL=https://api.openai.com/v1   (或其他兼容端点)
-    AI_MODEL=gpt-4o
-
-  或新建 D:/trading_data/ai_config.json:
-    {"api_key":"...", "base_url":"...", "model":"..."}
+  环境变量优先: AI_API_KEY, AI_BASE_URL, AI_MODEL
+  或: $QUANT_DATA_DIR/config/ai_config.json
 """
 
 import os, sys, json, time
 from typing import Optional, Generator
 from datetime import datetime
 
+from src.lxl_quantaxis.core.logging import get_logger
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+_log = get_logger("ai.engine")
 
 from src.config import config as cfg
 from src.lxl_quantaxis.ai import CompletionResponse
@@ -76,7 +74,8 @@ class LLMClient:
         import urllib.error
 
         if not self.api_key:
-            return "❌ 请先设置 AI_API_KEY 环境变量或配置 D:/trading_data/ai_config.json"
+            data_dir = os.environ.get("QUANT_DATA_DIR", os.environ.get("TRADING_DATA_DIR", "~/lxl_quantaxis_data"))
+            return f"请先设置 AI_API_KEY 环境变量或在 {data_dir}/config/ai_config.json 中配置"
 
         body = {
             "model": self.model,
