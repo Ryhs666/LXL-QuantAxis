@@ -1434,78 +1434,101 @@ V2_DASHBOARD_HTML = r"""<!DOCTYPE html>
 <title>LXL QuantAxis v2.0</title>
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 <style>
-:root{--bg:#060912;--card:#111827;--accent:#3b82f6;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--text:#f1f5f9;--muted:#94a3b8;--border:#1e293b}
+:root{--bg:#060912;--card:#111827;--accent:#3b82f6;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--text:#f1f5f9;--muted:#94a3b8;--border:#1e293b;--hover:#1a2332}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
-header{background:var(--card);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
-header h1{font-size:20px;color:var(--accent)}header .ver{font-size:11px;color:var(--muted)}
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;padding:20px 24px}
-.kpi{background:var(--card);border-radius:10px;padding:16px 20px;border:1px solid var(--border)}
-.kpi .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-.kpi .value{font-size:28px;font-weight:700;margin-top:4px}
-.kpi .sub{font-size:11px;color:var(--muted);margin-top:2px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 24px 24px}
-.card{background:var(--card);border-radius:10px;border:1px solid var(--border);padding:16px}
-.card h3{font-size:14px;color:var(--accent);margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:8px}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th{text-align:left;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--border);font-weight:600}
-td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.03)}
+header{background:var(--card);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:100;flex-wrap:wrap}
+header h1{font-size:18px;color:var(--accent);white-space:nowrap}
+header .ver{font-size:10px;color:var(--muted)}
+nav{display:flex;gap:4px;flex-wrap:wrap;margin-left:16px}
+nav a{color:var(--muted);text-decoration:none;font-size:12px;padding:4px 10px;border-radius:4px;transition:all .2s;white-space:nowrap}
+nav a:hover,nav a.active{background:var(--accent);color:#fff}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;padding:16px 20px}
+.kpi{background:var(--card);border-radius:8px;padding:14px 16px;border:1px solid var(--border);cursor:pointer;transition:border-color .2s}
+.kpi:hover{border-color:var(--accent)}
+.kpi .label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.kpi .value{font-size:24px;font-weight:700;margin-top:2px}
+.kpi .sub{font-size:10px;color:var(--muted);margin-top:1px}
+.main-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 20px 20px}
+@media(max-width:900px){.main-grid{grid-template-columns:1fr}}
+.card{background:var(--card);border-radius:8px;border:1px solid var(--border);padding:14px}
+.card h3{font-size:13px;color:var(--accent);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.card-full{grid-column:1/-1}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;color:var(--muted);padding:3px 6px;border-bottom:1px solid var(--border);font-weight:600;font-size:10px}
+td{padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.03)}
 tr:hover{background:rgba(255,255,255,.02)}
 .good{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--yellow)}
 .btn{padding:6px 14px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:600}
 .btn-on{background:var(--green);color:#000}.btn-off{background:var(--red);color:#fff}
-.loading{color:var(--muted);font-style:italic;padding:20px;text-align:center}
+.loading{color:var(--muted);font-style:italic;padding:12px;text-align:center;font-size:12px}
+.kline-select{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.kline-select select,.kline-select input{background:var(--bg);color:var(--text);border:1px solid var(--border);padding:4px 8px;border-radius:4px;font-size:12px}
 </style></head>
 <body>
 <header>
-  <h1>LXL&#183;QuantAxis</h1><span class="ver">v2.0.0-alpha.1</span>
+  <h1>LXL&#183;QuantAxis</h1><span class="ver">v2.0</span>
+  <nav>
+    <a href="/v2" class="active">仪表盘</a>
+    <a href="/classic">经典面板</a>
+    <a href="/studio">交易工作室</a>
+    <a href="/game">模拟交易</a>
+    <a href="/admin">管理</a>
+  </nav>
   <span style="flex:1"></span>
-  <span id="clock" style="color:var(--muted);font-size:12px"></span>
+  <span id="clock" style="color:var(--muted);font-size:11px"></span>
 </header>
 
-<div class="kpi-grid" id="kpiGrid">
-  <div class="kpi"><div class="label">Alpha Signals</div><div class="value" id="kpiSignals">-</div><div class="sub">signal memory</div></div>
-  <div class="kpi"><div class="label">Total Factors</div><div class="value" id="kpiFactors">-</div><div class="sub">registered</div></div>
+<div class="kpi-grid">
+  <div class="kpi" onclick="scrollToSection('kline')"><div class="label">Realtime K-Line</div><div class="value" id="kpiPrice">-</div><div class="sub">click for chart</div></div>
+  <div class="kpi"><div class="label">Alpha Signals</div><div class="value" id="kpiSignals">-</div><div class="sub">memory DB</div></div>
+  <div class="kpi"><div class="label">Factors</div><div class="value" id="kpiFactors">-</div><div class="sub">registered</div></div>
   <div class="kpi"><div class="label">Broker P&L</div><div class="value" id="kpiPnl">-</div><div class="sub">paper broker</div></div>
   <div class="kpi"><div class="label">Backtests</div><div class="value" id="kpiBacktests">-</div><div class="sub">total runs</div></div>
-  <div class="kpi"><div class="label">Bank Strategies</div><div class="value" id="kpiBank">-</div><div class="sub">evolution + user</div></div>
-  <div class="kpi"><div class="label">Risk Gate</div><div class="value" id="kpiGate">-</div><div class="sub">checks/rejected</div></div>
+  <div class="kpi"><div class="label">Bank</div><div class="value" id="kpiBank">-</div><div class="sub">strategies</div></div>
 </div>
 
-<div class="grid2">
-  <div class="card">
-    <h3>Alpha Memory — Factor Win Rate</h3>
-    <div id="alphaTable" class="loading">Loading...</div>
-  </div>
-  <div class="card">
-    <h3>Market Regime Performance</h3>
-    <div id="regimeTable" class="loading">Loading...</div>
-  </div>
-</div>
-
-<div class="grid2">
-  <div class="card">
-    <h3>Paper Broker — Recent Orders</h3>
-    <div id="orderTable" class="loading">Loading...</div>
-  </div>
-  <div class="card">
-    <h3>Unified Strategy Bank — Top 5</h3>
-    <div id="bankTable" class="loading">Loading...</div>
-  </div>
-</div>
-
-<div class="grid2">
-  <div class="card">
-    <h3>Macro Indicators</h3>
-    <div id="macroTable" class="loading">Loading...</div>
-  </div>
-  <div class="card">
-    <h3>Auto Trade Control</h3>
-    <div style="margin:12px 0">
-      <button class="btn btn-off" id="autoTradeBtn" onclick="toggleAutoTrade()">AUTO TRADE: OFF</button>
-      <span id="autoTradeStatus" style="margin-left:12px;font-size:12px;color:var(--muted)"></span>
+<div class="main-grid">
+  <!-- K-Line Chart -->
+  <div class="card card-full" id="kline">
+    <h3>Candlestick Chart</h3>
+    <div class="kline-select">
+      <select id="klSymbol" onchange="loadKline()">
+        <option value="600519">600519 Kweichow Moutai</option>
+        <option value="000858">000858 WuLiangYe</option>
+        <option value="601398" selected>601398 ICBC</option>
+        <option value="300750">300750 CATL</option>
+        <option value="000001">000001 PingAn Bank</option>
+      </select>
+      <select id="klDays" onchange="loadKline()">
+        <option value="90">90 days</option>
+        <option value="180" selected>180 days</option>
+        <option value="365">365 days</option>
+      </select>
     </div>
-    <div id="signalQueue" style="font-size:12px;color:var(--muted)"></div>
+    <div id="klineChart" style="width:100%;height:400px" class="loading">Loading chart...</div>
+  </div>
+
+  <!-- Alpha Memory -->
+  <div class="card"><h3>Factor Win Rate</h3><div id="alphaTable" class="loading">Loading...</div></div>
+  <div class="card"><h3>Regime Performance</h3><div id="regimeTable" class="loading">Loading...</div></div>
+
+  <!-- Paper Broker + Bank -->
+  <div class="card"><h3>Recent Orders</h3><div id="orderTable" class="loading">Loading...</div></div>
+  <div class="card"><h3>Strategy Bank Top 5</h3><div id="bankTable" class="loading">Loading...</div></div>
+
+  <!-- Macro + Controls -->
+  <div class="card"><h3>Macro Indicators</h3><div id="macroTable" class="loading">Loading...</div></div>
+  <div class="card">
+    <h3>Controls</h3>
+    <div style="margin:8px 0">
+      <button class="btn btn-off" id="autoTradeBtn" onclick="toggleAutoTrade()">Auto Trade: OFF</button>
+      <span id="autoTradeStatus" style="margin-left:10px;font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--muted)">
+      <div>Gate: <span id="gateStats">-</span></div>
+      <div style="margin-top:4px">Alerts: <span id="alertStatus">active</span></div>
+    </div>
   </div>
 </div>
 
@@ -1513,89 +1536,90 @@ tr:hover{background:rgba(255,255,255,.02)}
 const $=id=>document.getElementById(id);
 async function api(url){const r=await fetch(url);return r.json()}
 
+// ===== K-Line Chart =====
+async function loadKline(){
+  const sym=$('klSymbol').value,days=$('klDays').value;
+  try{
+    const d=await api('/api/kline?symbol='+sym+'&days='+days);
+    if(!d.ok){$('klineChart').textContent='No data';return}
+    const o=d.ohlcv||[],dates=o.map(r=>r.date),opens=o.map(r=>r.open),highs=o.map(r=>r.high),lows=o.map(r=>r.low),closes=o.map(r=>r.close),vols=o.map(r=>r.volume);
+    const trace={x:dates,close:closes,high:highs,low:lows,open:opens,type:'candlestick',increasing:{line:{color:'#10b981'},fillcolor:'#10b981'},decreasing:{line:{color:'#ef4444'},fillcolor:'#ef4444'},name:sym};
+    const layout={height:400,margin:{l:60,r:20,t:10,b:40},paper_bgcolor:'#111827',plot_bgcolor:'#111827',xaxis:{gridcolor:'#1e293b',color:'#94a3b8'},yaxis:{gridcolor:'#1e293b',color:'#94a3b8'},showlegend:false,dragmode:'pan'};
+    Plotly.newPlot('klineChart',[trace],layout,{responsive:true,displayModeBar:true,modeBarButtonsToRemove:['lasso2d','select2d']});
+    if(closes.length){$('kpiPrice').textContent='\xA5'+closes[closes.length-1].toFixed(2);$('kpiPrice').className='value '+(closes[closes.length-1]>=closes[0]?'good':'bad')}
+  }catch(e){$('klineChart').textContent='Error: '+e}
+}
+
+// ===== Dashboard Refresh =====
 async function refresh(){
   try{
     const s=await api('/api/v2/status');
     $('kpiSignals').textContent=s.alpha_signals||0;
     $('kpiFactors').textContent=s.factors||0;
-    if(s.broker){$('kpiPnl').textContent='\xA5'+((s.broker.pnl||0)/1).toFixed(0);$('kpiPnl').className='value '+(s.broker.pnl>=0?'good':'bad')}
+    if(s.broker){const pnl=(s.broker.pnl||0)/1;$('kpiPnl').textContent='\xA5'+pnl.toFixed(0);$('kpiPnl').className='value '+(pnl>=0?'good':'bad')}
     $('kpiBacktests').textContent=s.backtests||0;
     if(s.bank){$('kpiBank').textContent=s.bank.total||0}
-    if(s.risk_gate){const g=s.risk_gate;$('kpiGate').textContent=(g.total_checks||0)+'/'+(g.total_rejected||0)}
   }catch(e){}
 
   try{
     const a=await api('/api/v2/alpha/stats');
     if(a.ok){
-      let rows='<table><tr><th>Factor</th><th>Signals</th><th>Win Rate</th><th>Avg PnL</th></tr>';
+      let rows='<table><tr><th>Factor</th><th>Signals</th><th>Win</th><th>AvgPnL</th></tr>';
       const wr=a.win_rate_by_factor||{};
       Object.entries(wr).sort((a,b)=>b[1].total-a[1].total).slice(0,10).forEach(([n,s])=>{
-        rows+=`<tr><td>${n}</td><td>${s.total}</td><td class="${s.win_rate>=.5?'good':'bad'}">${(s.win_rate*100).toFixed(0)}%</td><td>${(s.avg_pnl_pct*100).toFixed(2)}%</td></tr>`;
+        rows+=`<tr><td>${n.substring(0,18)}</td><td>${s.total}</td><td class="${s.win_rate>=.5?'good':'bad'}">${(s.win_rate*100).toFixed(0)}%</td><td>${(s.avg_pnl_pct*100).toFixed(2)}%</td></tr>`;
       });
       $('alphaTable').innerHTML=rows+'</table>';
-
-      const rm=a.regime_matrix||{};
-      const labels={0:'HighVol Up',1:'HighVol Down',2:'LowVol Range',3:'HighVol Rev'};
-      let rr='<table><tr><th>Regime</th><th>Signals</th><th>WinRate</th><th>AvgPnL</th><th>Best Factors</th></tr>';
-      Object.entries(rm).forEach(([rid,s])=>{
-        rr+=`<tr><td>${labels[rid]||rid}</td><td>${s.total_signals}</td><td class="${s.win_rate>=.5?'good':'bad'}">${(s.win_rate*100).toFixed(0)}%</td><td>${(s.avg_pnl_pct*100).toFixed(2)}%</td><td style="font-size:10px">${(s.best_factors||[]).join(', ')}</td></tr>`;
-      });
+      const rm=a.regime_matrix||{},labels={0:'HighVol Up',1:'HighVol Down',2:'LowVol Range',3:'HighVol Rev'};
+      let rr='<table><tr><th>Regime</th><th>Signals</th><th>Win</th><th>AvgPnL</th><th>Best Factors</th></tr>';
+      Object.entries(rm).forEach(([rid,s])=>{rr+=`<tr><td>${labels[rid]||rid}</td><td>${s.total_signals}</td><td class="${s.win_rate>=.5?'good':'bad'}">${(s.win_rate*100).toFixed(0)}%</td><td>${(s.avg_pnl_pct*100).toFixed(2)}%</td><td style="font-size:9px">${(s.best_factors||[]).slice(0,2).join(', ')}</td></tr>`});
       $('regimeTable').innerHTML=rr+'</table>';
     }
   }catch(e){$('alphaTable').textContent='Error: '+e}
 
   try{
     const o=await api('/api/v2/broker/orders');
-    if(o.ok&&o.orders){
-      let rows='<table><tr><th>ID</th><th>Symbol</th><th>Action</th><th>Qty</th><th>Price</th><th>Status</th></tr>';
-      o.orders.slice(0,10).forEach(o=>{
-        const sc={'filled':'good','rejected':'bad','pending':'warn'}[o.status]||'';
-        rows+=`<tr><td style="font-size:10px">${o.id}</td><td>${o.symbol}</td><td>${o.action}</td><td>${o.quantity}</td><td>${o.price.toFixed(2)}</td><td class="${sc}">${o.status}</td></tr>`;
-      });
+    if(o.ok&&o.orders&&o.orders.length){
+      let rows='<table><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Price</th><th>Status</th></tr>';
+      o.orders.slice(0,8).forEach(o=>{const sc={'filled':'good','rejected':'bad','pending':'warn'}[o.status]||'';rows+=`<tr><td>${o.symbol}</td><td>${o.action}</td><td>${o.quantity}</td><td>${(o.price||0).toFixed(2)}</td><td class="${sc}">${o.status}</td></tr>`});
       $('orderTable').innerHTML=rows+'</table>';
-    }
+    }else{$('orderTable').innerHTML='<div class="loading">No orders yet</div>'}
   }catch(e){$('orderTable').textContent='Error: '+e}
 
   try{
     const b=await api('/api/v2/bank/unified');
-    if(b.ok&&b.best){
+    if(b.ok&&b.best&&b.best.length){
       let rows='<table><tr><th>#</th><th>Name</th><th>Source</th><th>Fitness</th></tr>';
-      b.best.slice(0,5).forEach((s,i)=>{
-        rows+=`<tr><td>${i+1}</td><td>${s.name||'?'}</td><td>${s.source||''}</td><td class="${(s.fitness||0)>0?'good':'bad'}">${(s.fitness||0).toFixed(2)}</td></tr>`;
-      });
+      b.best.slice(0,5).forEach((s,i)=>{rows+=`<tr><td>${i+1}</td><td>${(s.name||'?').substring(0,22)}</td><td>${s.source||''}</td><td class="${(s.fitness||0)>0?'good':'bad'}">${(s.fitness||0).toFixed(2)}</td></tr>`});
       $('bankTable').innerHTML=rows+'</table>';
-    }
+    }else{$('bankTable').innerHTML='<div class="loading">No strategies in bank</div>'}
   }catch(e){$('bankTable').textContent='Error: '+e}
 
   try{
     const m=await api('/api/v2/macro/indicators');
-    if(m.ok){
-      $('macroTable').innerHTML='<table><tr><th>Code</th><th>Latest</th></tr>'+m.indicators.map(c=>`<tr><td>${c}</td><td id="macro_${c}" style="color:var(--muted)">-</td></tr>`).join('')+'</table>';
-      m.indicators.forEach(c=>{
-        fetch('/api/v2/macro/latest/'+c).then(r=>r.json()).then(d=>{
-          if(d.ok){const el=$('macro_'+c);if(el)el.textContent=d.date+': '+d.value}
-        }).catch(()=>{});
-      });
+    if(m.ok&&m.indicators){
+      $('macroTable').innerHTML='<table><tr><th>Code</th><th>Latest</th></tr>'+m.indicators.map(c=>`<tr><td style="font-size:10px">${c}</td><td id="macro_${c}" style="color:var(--muted);font-size:10px">-</td></tr>`).join('')+'</table>';
+      m.indicators.forEach(c=>{fetch('/api/v2/macro/latest/'+c).then(r=>r.json()).then(d=>{if(d.ok){const el=$('macro_'+c);if(el)el.textContent=d.date+': '+d.value}}).catch(()=>{})});
     }
   }catch(e){$('macroTable').textContent='Error: '+e}
 
   try{
-    const at=await api('/api/v2/broker/auto_trade');
-    const btn=$('autoTradeBtn');
-    if(at.auto_trade_enabled){btn.textContent='AUTO TRADE: ON';btn.className='btn btn-on'}
-    else{btn.textContent='AUTO TRADE: OFF';btn.className='btn btn-off'}
-    $('autoTradeStatus').textContent=at.queued_signals+' signals queued';
+    const at=await api('/api/v2/broker/auto_trade'),btn=$('autoTradeBtn');
+    btn.textContent='Auto Trade: '+(at.auto_trade_enabled?'ON':'OFF');
+    btn.className='btn '+(at.auto_trade_enabled?'btn-on':'btn-off');
+    $('autoTradeStatus').textContent=(at.queued_signals||0)+' signals';
   }catch(e){}
+  try{const g=await api('/api/v2/risk/gate/stats');if(g.ok){$('gateStats').textContent=(g.stats.total_checks||0)+' checks, '+(g.stats.total_rejected||0)+' rejected'}}catch(e){}
 }
 
 function toggleAutoTrade(){
-  fetch('/api/v2/broker/auto_trade',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({enabled:$('autoTradeBtn').textContent.includes('OFF')})})
-  .then(r=>r.json()).then(d=>{refresh()});
+  fetch('/api/v2/broker/auto_trade',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:$('autoTradeBtn').textContent.includes('OFF')})}).then(r=>r.json()).then(d=>refresh());
 }
 
+function scrollToSection(id){document.getElementById(id).scrollIntoView({behavior:'smooth'})}
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString()},1000);
-setInterval(refresh,15000);
+setInterval(refresh,30000);
+loadKline();
 refresh();
 </script></body></html>"""
 
@@ -2285,47 +2309,38 @@ def api_signals():
 
 @app.route('/api/kline')
 def api_kline_simple():
-    """简单K线接口 — 从CSV读取，保证数据可控"""
+    """K线接口 — 从缓存读取 OHLCV 数据"""
     import pandas as pd, os
-    symbol = request.args.get('symbol', '000001')
+    symbol = request.args.get('symbol', '601398')
+    days = int(request.args.get('days', 180))
 
     data = []
-    # 从统一CSV读取
-    csv_path = 'D:/trading_data/ohlcv_daily.csv'
-    if os.path.exists(csv_path):
-        try:
-            df = pd.read_csv(csv_path)
-            sub = df[df['symbol'] == symbol].sort_values('date').tail(60)
-            for _, row in sub.iterrows():
-                data.append({
-                    "time": str(row['date'])[:10],
-                    "open": float(row['open']),
-                    "high": float(row['high']),
-                    "low": float(row['low']),
-                    "close": float(row['close']),
-                    "volume": int(row['volume']),
-                })
-        except Exception as e:
-            print(f"[Kline] CSV读取失败: {e}")
+    cache_file = f'D:/trading_data/cache/A股_{symbol}_daily.csv'
+    alt_file = f'D:/trading_data/ohlcv_daily.csv'
 
-    # 降级：从缓存CSV读取
-    if not data:
-        cache_file = f'D:/trading_data/cache/A股_{symbol}_daily.csv'
-        if os.path.exists(cache_file):
+    # 优先从单股票缓存读取
+    for path in [cache_file, alt_file]:
+        if os.path.exists(path):
             try:
-                df = pd.read_csv(cache_file)
-                for _, row in df.tail(60).iterrows():
+                df = pd.read_csv(path)
+                if 'symbol' in df.columns:
+                    df = df[df['symbol'] == symbol]
+                df = df.sort_values('date').tail(days)
+                for _, row in df.iterrows():
                     data.append({
-                        "time": str(row.get('date',''))[:10],
-                        "open": float(row['open']), "high": float(row['high']),
-                        "low": float(row['low']), "close": float(row['close']),
-                        "volume": int(row.get('volume',0)),
+                        "date": str(row.get('date', ''))[:10],
+                        "open": float(row['open']),
+                        "high": float(row['high']),
+                        "low": float(row['low']),
+                        "close": float(row['close']),
+                        "volume": int(row.get('volume', 0)),
                     })
+                if data:
+                    break
             except Exception:
-                pass
+                continue
 
-    latest = data[-1]['close'] if data else 0
-    return jsonify({"symbol": symbol, "data": data, "latest_price": latest, "count": len(data)})
+    return jsonify({"ok": True, "symbol": symbol, "ohlcv": data, "count": len(data)})
 
 
 @app.route('/api/kline/poll')
