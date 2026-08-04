@@ -39,7 +39,8 @@ def compute_correlation_matrix(
     """
     if factors is None:
         factors = [c for c in factor_df.columns
-                   if not c.startswith("_") and c not in ("date", "symbol")]
+                   if (isinstance(c, str) and not c.startswith("_"))
+                   and c not in ("date", "symbol")]
 
     available = [f for f in factors if f in factor_df.columns]
     if len(available) < 2:

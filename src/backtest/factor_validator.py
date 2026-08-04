@@ -6,9 +6,11 @@ FactorValidator — 因子有效性验证 (v5.6)
 3. 报表输出: IC均值/标准差/IC_IR/胜率
 """
 
+import os
 import pandas as pd
 import numpy as np
 from typing import Optional, List, Dict
+from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -228,9 +230,17 @@ class FactorValidator:
     # ═══════════════════════════════════════════
 
     def full_report(self, forward_days: int = 5, n_groups: int = 5,
-                    save_chart: str = None) -> dict:
+                    save_chart: str = None, save_corr_heatmap: bool = True,
+                    corr_save_dir: str = None) -> dict:
         """
-        生成完整验证报告
+        生成完整验证报告 (含因子相关性热力图)。
+
+        Args:
+            forward_days:     前瞻收益天数
+            n_groups:         分层回测组数
+            save_chart:       分层收益图保存路径 (None=不保存)
+            save_corr_heatmap: 是否生成因子相关性热力图
+            corr_save_dir:    热力图保存目录 (默认 D:/trading_data/charts)
         """
         # IC 分析
         ic = self.compute_ic(forward_days)
@@ -276,5 +286,70 @@ class FactorValidator:
         # 绘图
         if save_chart:
             self.plot_stratified(n_groups, forward_days, save_chart)
+
+        # ── 因子相关性热力图 (v2.0 新增) ──
+        corr_path = None
+        if save_corr_heatmap:
+            try:
+                from src.analysis.factor_correlation import (
+                    compute_correlation_matrix,
+                    find_high_corr_pairs,
+                    plot_correlation_heatmap,
+                    suggest_redundant_removal,
+                )
+                import os
+
+                save_dir = corr_save_dir or "D:/trading_data/charts"
+                os.makedirs(save_dir, exist_ok=True)
+
+                # 构建因子 DataFrame (将横截面面板转为时序因子值)
+                # factor_data: index=date, columns=symbol
+                # 对每个因子的横截面取均值, 得到因子时序
+                factor_ts = pd.DataFrame({
+                    "factor_value": self.factor.stack()
+                })
+                # 计算每日横截面所有股票的因子均值作为该因子代理
+                # 简单方式: 取每只股票的第一列因子值做时序 (因子是单一值, 非多维)
+                # 这里我们从 factor_data 构建适合 correlation 的 DataFrame
+                # factor_data shape: (dates, symbols), 用 stack 后的值
+
+                # 使用 pairwise 方法: 取两个不同因子的面板数据计算相关性
+                # 简化: 把每个 symbol 当作一个"因子观察"计算截面相关性
+                # 实际上 factor_validator 处理的是单因子面板, 不是多因子
+                # 所以这里计算的是: 同一因子在不同股票上的表现一致性
+
+                # 构建因子-股票矩阵用于相关性分析
+                wide_factor = self.factor.copy()  # (date, symbol)
+                if not wide_factor.empty and wide_factor.shape[1] >= 2:
+                    # 计算股票间的因子值相关性
+                    corr_matrix = compute_correlation_matrix(
+                        wide_factor.T, method="pearson"
+                    )
+                    if not corr_matrix.empty:
+                        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        corr_path = plot_correlation_heatmap(
+                            corr_matrix,
+                            save_path=os.path.join(save_dir, f"factor_corr_validated_{ts}.png"),
+                            method="pearson",
+                            title=f"Factor Cross-Symbol Correlation (IC_IR={ic_ir:.2f})",
+                        )
+
+                        # 高相关股票对
+                        high_pairs = find_high_corr_pairs(corr_matrix, threshold=0.8)
+                        if high_pairs:
+                            print(f"\n  [相关性] {len(high_pairs)} 对高相关股票 (|r|>0.8):")
+                            for a, b, r in high_pairs[:5]:
+                                print(f"    {a} ↔ {b}: r={r:+.3f}")
+                            if corr_path:
+                                print(f"  热力图: {corr_path}")
+
+                        report["corr_heatmap_path"] = corr_path
+                        report["high_corr_pairs_count"] = len(high_pairs)
+            except ImportError as e:
+                print(f"  [相关性] 模块不可用: {e}")
+            except Exception as e:
+                print(f"  [相关性] 分析异常: {type(e).__name__}: {e}")
+
+        return report
 
         return report
