@@ -708,12 +708,27 @@ class MomentumStrategy(BaseStrategy):
 
 # ============================================================
 # 策略注册表
+# Lazy imports to avoid circular dependency when strategies
+# import from library (adaptive/regime/short/ensemble all use BaseStrategy).
 # ============================================================
 
-from src.strategies.adaptive import AdaptiveCompositeStrategy
-from src.strategies.short_strategies import TrendShortStrategy, DualDirectionStrategy
-from src.strategies.regime_strategy import RegimeAwareStrategy
-from src.strategies.ensemble import StrategyEnsemble, create_ensemble
+_STRATEGY_CLASS_CACHE = {}
+
+def _lazy_import(module_name: str, class_name: str):
+    key = (module_name, class_name)
+    if key not in _STRATEGY_CLASS_CACHE:
+        import importlib
+        mod = importlib.import_module(module_name)
+        _STRATEGY_CLASS_CACHE[key] = getattr(mod, class_name)
+    return _STRATEGY_CLASS_CACHE[key]
+
+
+def _get_adaptive():  return _lazy_import("src.strategies.adaptive", "AdaptiveCompositeStrategy")
+def _get_trend_short(): return _lazy_import("src.strategies.short_strategies", "TrendShortStrategy")
+def _get_dual(): return _lazy_import("src.strategies.short_strategies", "DualDirectionStrategy")
+def _get_regime(): return _lazy_import("src.strategies.regime_strategy", "RegimeAwareStrategy")
+def _get_ensemble(): return _lazy_import("src.strategies.ensemble", "StrategyEnsemble")
+def _get_create_ensemble(): return _lazy_import("src.strategies.ensemble", "create_ensemble")
 
 STRATEGIES = {
     "ensemble": {
@@ -724,25 +739,25 @@ STRATEGIES = {
     },
     "adaptive": {
         "name": "自适应复合",
-        "class": AdaptiveCompositeStrategy,
+        "class": _get_adaptive,   # lazy to break circular import
         "params": {},
         "description": "自动检测趋势/震荡/下跌, 切换最优子策略",
     },
     "trend_short": {
         "name": "趋势破位做空",
-        "class": TrendShortStrategy,
+        "class": _get_trend_short,
         "params": {"short_period": (10, 30), "cover_period": (5, 20)},
         "description": "价格破位做空+回升平仓, 适合下跌趋势",
     },
     "dual_direction": {
         "name": "双向交易",
-        "class": DualDirectionStrategy,
+        "class": _get_dual,
         "params": {},
         "description": "趋势向上做多, 趋势向下做空, 双向获利",
     },
     "regime_aware": {
         "name": "状态感知",
-        "class": RegimeAwareStrategy,
+        "class": _get_regime,
         "params": {},
         "description": "5状态分类(强牛/弱牛/震荡/弱熊/强熊), 自适应双向交易",
     },
