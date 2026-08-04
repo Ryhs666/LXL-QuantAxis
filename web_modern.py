@@ -1354,6 +1354,13 @@ def login_page():
 def studio_page():
     return render_template('studio.html')
 
+@app.route('/professional')
+def professional_page():
+    """Opt-in professional investment workflow; Classic remains the default."""
+    if os.environ.get("LXL_PROFESSIONAL_DASHBOARD", "0") != "1":
+        return redirect('/studio')
+    return render_template('professional.html')
+
 @app.route('/classic')
 def classic_dashboard():
     """原有完整功能面板 — 侧边栏菜单 + 仪表盘 + 回测 + AI 等全功能"""
