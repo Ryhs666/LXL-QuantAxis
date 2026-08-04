@@ -384,6 +384,11 @@ def _save_trade_logs(user_id: int, results: list):
         db.close()
 
 
+def run_v2_daily_brief(orchestrator, context):
+    """Compatibility entry point; V2 application service owns orchestration."""
+    return orchestrator.run(context)
+
+
 if __name__ == "__main__":
     full_mode = "--full" in sys.argv
 
