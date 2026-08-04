@@ -16,6 +16,9 @@ from dataclasses import dataclass, field
 from typing import Optional, Callable
 import pandas as pd
 import numpy as np
+from src.lxl_quantaxis.core.logging import get_logger
+
+_log = get_logger("factors.definitions")
 
 
 # ============================================================
