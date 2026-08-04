@@ -1692,6 +1692,25 @@ if __name__ == "__main__":
             webbrowser.open(f"file:///{path.replace(chr(92), '/')}")
         except Exception as e:
             print(f"\n  ❌ 生成失败: {e}")
+    elif len(sys.argv) > 1 and sys.argv[1] == "--research":
+        sub = sys.argv[2] if len(sys.argv) > 2 else "list"
+        if sub == "list":
+            from src.lxl_quantaxis.research.notebook import list_notes, note_count
+            print(f"\n  Research Notebook ({note_count()} notes):")
+            for n in list_notes(limit=20):
+                print(f"  [{n.id}] {n.date} {n.symbol:8s} {n.title[:60]}")
+        elif sub == "search":
+            kw = sys.argv[3] if len(sys.argv) > 3 else ""
+            from src.lxl_quantaxis.research.notebook import search_notes
+            for n in search_notes(kw):
+                print(f"  [{n.id}] {n.date} {n.symbol:8s} {n.title[:60]}")
+        elif sub == "add":
+            symbol = sys.argv[3] if len(sys.argv) > 3 else ""
+            title = sys.argv[4] if len(sys.argv) > 4 else "Untitled"
+            thesis = sys.argv[5] if len(sys.argv) > 5 else ""
+            from src.lxl_quantaxis.research.notebook import create_note
+            nid = create_note(title=title, symbol=symbol, investment_thesis=thesis)
+            print(f"\n  Note #{nid} created: {title}")
     else:
         main()
 
