@@ -85,7 +85,7 @@ def simulate_orderbook(close: float, high: float, low: float,
 
 
 class ExecutionEngine:
-    """专业订单执行引擎"""
+    """Legacy experimental adapter; new paper accounts use the V2 PaperBroker."""
 
     def __init__(self):
         # 成交统计
