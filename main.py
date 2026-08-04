@@ -1702,6 +1702,18 @@ if __name__ == "__main__":
             webbrowser.open(f"file:///{path.replace(chr(92), '/')}")
         except Exception as e:
             print(f"\n  ❌ 生成失败: {e}")
+    elif len(sys.argv) > 1 and sys.argv[1] == "--allocate":
+        method = "risk_parity"
+        for i, arg in enumerate(sys.argv):
+            if arg == "--method" and i + 1 < len(sys.argv):
+                method = sys.argv[i + 1]
+        print(f"\n  [Allocator] 方法: {method}")
+        try:
+            from src.portfolio.optimizer import run_allocate_cli
+            run_allocate_cli(method)
+        except Exception as e:
+            print(f"\n  FAIL: {e}")
+
     elif len(sys.argv) > 1 and sys.argv[1] == "--discover":
         symbol = sys.argv[2] if len(sys.argv) > 2 else "600519"
         gens = 30

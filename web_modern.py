@@ -130,12 +130,24 @@ for _sym in [
 
 
 def _on_realtime_data(data: dict):
-    """真实行情回调：更新缓存 + SocketIO广播"""
+    """真实行情回调：更新缓存 + SocketIO广播 + 告警检查"""
     for sym, tick in data.items():
-        # 补充名称（首次）
         if not REALTIME_CACHE.get(sym, {}).get("name") and tick.get("name"):
-            pass  # tick already has name
+            pass
         REALTIME_CACHE[sym] = tick
+
+        # ── 告警引擎检查 (v2.0) ──
+        try:
+            from src.realtime.alert_engine import alert_engine
+            alert_engine.check({
+                "symbol": sym,
+                "price": tick.get("price", 0),
+                "volume": tick.get("volume", 0),
+                "change_pct": tick.get("change_pct", 0),
+                "timestamp": tick.get("timestamp", ""),
+            })
+        except Exception:
+            pass
 
     # SocketIO 广播
     if socketio:
@@ -3201,6 +3213,15 @@ if __name__ == '__main__':
             print(f"[RateLimit] 已启用 {applied} 条 API 限频规则")
     except Exception as e:
         print(f"[RateLimit] 初始化失败: {e}")
+
+    # ── 告警引擎 (v2.0) ──
+    try:
+        from src.realtime.alert_engine import alert_engine
+        alert_engine.load_rules_from_yaml()
+        alert_engine.start()
+        print("[Alert] 告警引擎已启动")
+    except Exception as e:
+        print(f"[Alert] 初始化失败: {e}")
 
     def open_browser():
         time.sleep(1)

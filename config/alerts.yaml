@@ -1,0 +1,56 @@
+# LXL·QuantAxis 告警规则配置 v2.0
+# 修改后重启服务生效
+
+channels:
+  - type: console  # 控制台输出 (默认启用)
+
+  # 邮件通知 (取消注释并配置)
+  # - type: email
+  #   host: smtp.qq.com
+  #   port: 465
+  #   sender: your_email@qq.com
+  #   password: your_smtp_password
+  #   receivers:
+  #     - receiver1@qq.com
+  #     - receiver2@qq.com
+
+  # 钉钉机器人 (取消注释并配置)
+  # - type: dingtalk
+  #   url: https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN
+  #   secret: YOUR_SECRET
+
+  # 企业微信机器人
+  # - type: wechat
+  #   url: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY
+
+  # 飞书机器人
+  # - type: feishu
+  #   url: https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_HOOK
+
+rules:
+  # 价格突破告警
+  - id: price_breakout_maotai
+    type: price_breakout
+    symbol: "600519"
+    threshold: 2500
+    direction: above
+    level: warning
+    cooldown: 300
+    message: "茅台突破2500元! 当前: {price:.2f}"
+
+  # 成交量异动
+  - id: volume_spike_default
+    type: volume_spike
+    symbol: "000001"
+    multiplier: 3.0
+    level: info
+    cooldown: 600
+    message: "000001 放量3倍! 量: {volume}"
+
+  # 回撤告警
+  - id: drawdown_10pct
+    type: drawdown
+    threshold: 0.10
+    level: error
+    cooldown: 900
+    message: "回撤超10%! 当前: {drawdown_pct:.1%}"
