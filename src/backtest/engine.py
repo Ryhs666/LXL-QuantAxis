@@ -259,6 +259,25 @@ class BacktestEngine:
         self._risk_signals = []  # 风控产生的信号记录
         self._fill_stats = {"attempted": 0, "filled": 0, "cancelled": 0}
 
+    @staticmethod
+    def _resolve_symbol(strategy, data: pd.DataFrame) -> str:
+        """Resolve the trading symbol from strategy config, data attrs, or
+        the 'symbol' column if present.
+
+        Priority:
+          1. strategy.config.name (explicit)
+          2. data.attrs['symbol'] (from get_data attrs)
+          3. data['symbol'].iloc[0] if column exists
+          4. "" — caller must handle empty symbol in valuation
+        """
+        if hasattr(strategy, 'config') and strategy.config and strategy.config.name:
+            return str(strategy.config.name)
+        if hasattr(data, 'attrs') and 'symbol' in data.attrs:
+            return str(data.attrs['symbol'])
+        if 'symbol' in data.columns and len(data) > 0:
+            return str(data['symbol'].iloc[0])
+        return ""  # legacy: caller handles empty
+
     def run(self, strategy, data: pd.DataFrame,
             position_size_pct: float = 0.2) -> dict:
         """Run with next-bar fills by default; legacy semantics are comparison-only."""
@@ -288,6 +307,7 @@ class BacktestEngine:
 
         self.portfolio = Portfolio(self.initial_capital)
         signals_log = []
+        symbol = self._resolve_symbol(strategy, data)
 
         data = data.sort_values("date").reset_index(drop=True)
 
@@ -310,7 +330,7 @@ class BacktestEngine:
 
             if signal is None:
                 # 按市价估值
-                prices = {row.get("symbol", ""): row["close"]}
+                prices = {symbol: row["close"]}
                 self.portfolio.mark_to_market(date, prices)
                 continue
 
@@ -336,7 +356,7 @@ class BacktestEngine:
                                 "symbol": signal.symbol, "price": signal.price,
                                 "reason": f"多因子择时(熊市): score={regime_score:.2f}",
                             })
-                            prices = {row.get("symbol", ""): row["close"]}
+                            prices = {symbol: row["close"]}
                             self.portfolio.mark_to_market(date, prices)
                             continue
                     except Exception:
@@ -479,10 +499,11 @@ class BacktestEngine:
         """Run point-in-time bars and execute close-derived signals next open."""
         from src.audit.TradeAudit import audit
         from src.lxl_quantaxis.backtest import BacktestEventLoop, DataPortal
-        from src.lxl_quantaxis.backtest.execution import NextBarOpenFillModel
+        from src.lxl_quantaxis.backtest.execution.fill_models import NextBarOpenFillModel
 
         self.portfolio = Portfolio(self.initial_capital)
         self._risk_signals = []
+        resolved_symbol = self._resolve_symbol(strategy, data)
         portal = DataPortal(data)
         event_loop = BacktestEventLoop(portal)
         fill_model = self.fill_model or NextBarOpenFillModel(
@@ -561,10 +582,9 @@ class BacktestEngine:
             elif signal is not None:
                 signals_log.append(signal)
 
-            symbol = str(row.get("symbol", ""))
             held_symbols = {key.removeprefix("SHORT_") for key in self.portfolio.positions}
-            if symbol:
-                held_symbols.add(symbol)
+            if resolved_symbol:
+                held_symbols.add(resolved_symbol)
             prices = {held_symbol: float(row["close"]) for held_symbol in held_symbols}
             self.portfolio.mark_to_market(date, prices)
             if self.risk:

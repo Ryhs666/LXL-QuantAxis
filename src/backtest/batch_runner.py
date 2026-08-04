@@ -328,7 +328,9 @@ def _make_strategy_instance(strategy_key: str, params: dict, symbol: str,
 
     # 先试经典策略库
     if strategy_key in STRATEGIES:
-        cls = STRATEGIES[strategy_key]["class"]
+        cls_or_fn = STRATEGIES[strategy_key]["class"]
+        # 支持懒加载: callable returns the actual class
+        cls = cls_or_fn() if callable(cls_or_fn) else cls_or_fn
         # 策略集成特殊处理
         if cls is None and strategy_key == "ensemble":
             from src.strategies.ensemble import create_ensemble, EnsembleStrategy
