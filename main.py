@@ -527,6 +527,19 @@ def _run_single_backtest(strategy_key: str):
         from src.dashboard.visual import open_dashboard
         open_dashboard("performance")
 
+    # ── 自动生成复现清单 (v2.0) ──
+    try:
+        from src.journal.manifest import manifest_from_backtest
+        manifest_from_backtest(
+            strategy_name=strategy_key,
+            symbol=symbol,
+            metrics=result.get("metrics", {}),
+            params={"start_date": start, "end_date": end or today},
+        )
+        print(f"  📋 复现清单已自动保存")
+    except Exception as e:
+        print(f"  ⚠️ 复现清单生成失败: {e}")
+
 
 def _custom_strategy_backtest():
     from src.factors.composer import SignalComposer

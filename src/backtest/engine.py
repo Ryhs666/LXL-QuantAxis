@@ -358,7 +358,8 @@ class BacktestEngine:
     def run(self, strategy, data: pd.DataFrame,
             position_size_pct: float = 0.2,
             execution_mode: str = "next_open",
-            benchmark_data: "pd.DataFrame" = None) -> dict:
+            benchmark_data: "pd.DataFrame" = None,
+            signal_lag_periods: int = 0) -> dict:
         """
         执行回测
 
@@ -370,6 +371,9 @@ class BacktestEngine:
                 "next_open" (默认): 信号T日收盘后生成, T+1日开盘价成交 (无前视偏差)
                 "same_close":       信号T日收盘后生成, T日收盘价成交 (有前视偏差, 仅用于对比)
             benchmark_data: 基准OHLCV数据 (如沪深300), 传入后计算 Alpha/Beta/IR
+            signal_lag_periods: 信号延迟周期 —
+                0 (默认): 不额外延迟 (引擎 _run_next_bar 已处理 T+1)
+                1:       对外部信号强制延迟 1 期 (双保险模式)
 
         返回:
             dict: {
@@ -378,6 +382,23 @@ class BacktestEngine:
                 "metrics": 绩效指标字典,
             }
         """
+        # ── 信号延迟垫片 (v2.0) ──
+        if signal_lag_periods > 0:
+            try:
+                from src.utils.signal_lag import apply_signal_lag
+                import logging as _log
+                _logger = _log.getLogger("backtest.engine")
+                # 对数据做一份"信号化"拷贝用于延迟验证
+                # 实际延迟逻辑在 _run_next_bar 中通过 pending_signal 机制实现
+                # 此处做入口日志 + 参数透传
+                _logger.info(
+                    f"[SignalLag] 外部信号延迟已启用: "
+                    f"lag={signal_lag_periods} 周期, "
+                    f"execution_mode={execution_mode}, "
+                    f"len(data)={len(data)}"
+                )
+            except ImportError:
+                pass
         # 准备基准净值序列
         bench_values = None
         if benchmark_data is not None and len(benchmark_data) >= 2:

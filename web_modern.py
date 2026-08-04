@@ -3178,6 +3178,15 @@ if __name__ == '__main__':
     from src.database import init_db
     init_db()
 
+    # ── 速率限制中间件 (v2.0) ──
+    try:
+        from src.utils.rate_limiter import apply_rate_limits_to_app, SENSITIVE_ROUTE_LIMITS
+        applied = apply_rate_limits_to_app(app, SENSITIVE_ROUTE_LIMITS)
+        if applied > 0:
+            print(f"[RateLimit] 已启用 {applied} 条 API 限频规则")
+    except Exception as e:
+        print(f"[RateLimit] 初始化失败: {e}")
+
     def open_browser():
         time.sleep(1)
         webbrowser.open('http://127.0.0.1:5000')
