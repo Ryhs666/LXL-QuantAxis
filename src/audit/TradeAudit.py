@@ -138,9 +138,12 @@ class TradeAudit:
                 )
 
     @staticmethod
-    def send_alert(title: str, message: str):
-        """发送桌面弹窗 (Win10/11)"""
+    def send_alert(title: str, message: str, popup: bool = False):
+        """发送告警 (默认仅日志, popup=True 才弹窗)"""
         _audit_logger.warning(f"ALERT | {title} | {message.replace(chr(10), '; ')}")
+
+        if not popup:
+            return  # 默认不弹窗, 避免开发时干扰
 
         # 方法1: win10toast (如果安装了)
         try:
@@ -150,7 +153,7 @@ class TradeAudit:
         except ImportError:
             pass
 
-        # 方法2: Windows 原生 API (无需额外依赖)
+        # 方法2: Windows 原生 API
         try:
             import ctypes
             ctypes.windll.user32.MessageBoxW(0, message, title, 0x40030)

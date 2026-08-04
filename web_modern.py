@@ -400,24 +400,39 @@ metrics = MetricsRegistry()
 
 
 def stall_monitor(timeout_minutes: int = 30):
-    """后台停滞监控线程"""
+    """后台停滞监控线程 — 仅日志警告，不弹窗"""
     while True:
         time.sleep(60)  # 每分钟检查一次
         status = metrics.check_stall(timeout_minutes)
         if status["stalled"]:
-            from src.audit.TradeAudit import audit
-            audit.send_alert(
-                "⚠️ 策略停滞告警",
-                f"超过{timeout_minutes}分钟无交易信号或数据更新\n"
-                f"最后信号: {status['since_last_signal']}\n"
-                f"最后数据: {status['since_last_data']}\n"
-                f"可能原因: 逻辑死锁 / 数据断流 / 网络异常"
+            msg = (
+                f"[Monitor] 策略停滞告警: >{timeout_minutes}分钟无信号 "
+                f"(最后信号: {status['since_last_signal']}, "
+                f"最后数据: {status['since_last_data']})"
             )
+            print(msg)
+
+            # 仅当显式开启时才弹窗提醒
+            if os.environ.get("QUANT_STALL_POPUP", "").lower() in ("1", "true", "yes"):
+                try:
+                    from src.audit.TradeAudit import audit
+                    audit.send_alert(
+                        "策略停滞告警",
+                        f"超过{timeout_minutes}分钟无交易信号或数据更新\n"
+                        f"最后信号: {status['since_last_signal']}\n"
+                        f"最后数据: {status['since_last_data']}"
+                    )
+                except Exception:
+                    pass
 
 
-# 启动监控线程
-_stall_thread = threading.Thread(target=stall_monitor, args=(30,), daemon=True)
-_stall_thread.start()
+# 监控线程 — 仅当 QUANT_MONITOR=true 时启动 (默认关闭, 避免开发时弹窗干扰)
+if os.environ.get("QUANT_MONITOR", "").lower() in ("1", "true", "yes"):
+    _stall_thread = threading.Thread(target=stall_monitor, args=(30,), daemon=True)
+    _stall_thread.start()
+    print("[Monitor] 策略停滞监控已启动 (30分钟超时)")
+else:
+    print("[Monitor] 策略停滞监控未启动 (设置 QUANT_MONITOR=true 开启)")
 
 
 # ═══════════════════════════════════════════════════════════
