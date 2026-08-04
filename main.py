@@ -1702,6 +1702,23 @@ if __name__ == "__main__":
             webbrowser.open(f"file:///{path.replace(chr(92), '/')}")
         except Exception as e:
             print(f"\n  ❌ 生成失败: {e}")
+    elif len(sys.argv) > 1 and sys.argv[1] == "--tune":
+        strategy = sys.argv[2] if len(sys.argv) > 2 else "ma_cross"
+        symbol = "601398"
+        trials = 50
+        for i, arg in enumerate(sys.argv):
+            if arg == "--symbol" and i + 1 < len(sys.argv):
+                symbol = sys.argv[i + 1]
+            if arg == "--trials" and i + 1 < len(sys.argv):
+                trials = int(sys.argv[i + 1])
+        print(f"\n  [Tuner] 开始调优: {strategy} on {symbol} ({trials} trials)")
+        try:
+            from src.utils.strategy_tuner import run_tune_cli
+            best = run_tune_cli(strategy, symbol=symbol, n_trials=trials)
+            if best:
+                print(f"\n  OK 最佳参数已保存到 config/best_params.json")
+        except Exception as e:
+            print(f"\n  FAIL 调优失败: {e}")
     else:
         main()
 

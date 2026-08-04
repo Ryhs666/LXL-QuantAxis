@@ -613,6 +613,19 @@ class BacktestEngine:
             result["risk_report"] = self.risk.report()
             result["risk_logs"] = self.risk.get_recent_logs(20)
             result["risk_signals"] = self._risk_signals
+
+        # ── Brinson 归因 (v2.0) ──
+        if bench_values:
+            try:
+                from src.analysis.attribution import compute_attribution_from_engine
+                attr = compute_attribution_from_engine(
+                    self.portfolio.daily_values, bench_values,
+                )
+                if attr:
+                    result["attribution"] = attr
+            except Exception:
+                pass
+
         return result
 
     # ═════════════════════════════════════════════════════════
@@ -882,6 +895,19 @@ class BacktestEngine:
             result["risk_report"] = self.risk.report()
             result["risk_logs"] = self.risk.get_recent_logs(20)
             result["risk_signals"] = self._risk_signals
+
+        # ── Brinson 归因 (v2.0) ──
+        if bench_values:
+            try:
+                from src.analysis.attribution import compute_attribution_from_engine
+                attr = compute_attribution_from_engine(
+                    self.portfolio.daily_values, bench_values,
+                )
+                if attr:
+                    result["attribution"] = attr
+            except Exception:
+                pass
+
         return result
 
     @staticmethod
