@@ -1412,7 +1412,7 @@ if(AUTH.loggedIn){renderPanel('dashboard');}
 
 @app.route('/')
 def index():
-    return redirect('/login')
+    return redirect('/v2')
 
 @app.route('/login')
 def login_page():
@@ -1421,6 +1421,185 @@ def login_page():
 @app.route('/studio')
 def studio_page():
     return render_template('studio.html')
+
+@app.route('/v2')
+def v2_dashboard():
+    """v2.0 全新仪表盘 — Alpha Memory + Paper Broker + 宏观 + 基本面"""
+    return render_template_string(V2_DASHBOARD_HTML)
+
+
+V2_DASHBOARD_HTML = r"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LXL QuantAxis v2.0</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<style>
+:root{--bg:#060912;--card:#111827;--accent:#3b82f6;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--text:#f1f5f9;--muted:#94a3b8;--border:#1e293b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+header{background:var(--card);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+header h1{font-size:20px;color:var(--accent)}header .ver{font-size:11px;color:var(--muted)}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;padding:20px 24px}
+.kpi{background:var(--card);border-radius:10px;padding:16px 20px;border:1px solid var(--border)}
+.kpi .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.kpi .value{font-size:28px;font-weight:700;margin-top:4px}
+.kpi .sub{font-size:11px;color:var(--muted);margin-top:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 24px 24px}
+.card{background:var(--card);border-radius:10px;border:1px solid var(--border);padding:16px}
+.card h3{font-size:14px;color:var(--accent);margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--border);font-weight:600}
+td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.03)}
+tr:hover{background:rgba(255,255,255,.02)}
+.good{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--yellow)}
+.btn{padding:6px 14px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:600}
+.btn-on{background:var(--green);color:#000}.btn-off{background:var(--red);color:#fff}
+.loading{color:var(--muted);font-style:italic;padding:20px;text-align:center}
+</style></head>
+<body>
+<header>
+  <h1>LXL&#183;QuantAxis</h1><span class="ver">v2.0.0-alpha.1</span>
+  <span style="flex:1"></span>
+  <span id="clock" style="color:var(--muted);font-size:12px"></span>
+</header>
+
+<div class="kpi-grid" id="kpiGrid">
+  <div class="kpi"><div class="label">Alpha Signals</div><div class="value" id="kpiSignals">-</div><div class="sub">signal memory</div></div>
+  <div class="kpi"><div class="label">Total Factors</div><div class="value" id="kpiFactors">-</div><div class="sub">registered</div></div>
+  <div class="kpi"><div class="label">Broker P&L</div><div class="value" id="kpiPnl">-</div><div class="sub">paper broker</div></div>
+  <div class="kpi"><div class="label">Backtests</div><div class="value" id="kpiBacktests">-</div><div class="sub">total runs</div></div>
+  <div class="kpi"><div class="label">Bank Strategies</div><div class="value" id="kpiBank">-</div><div class="sub">evolution + user</div></div>
+  <div class="kpi"><div class="label">Risk Gate</div><div class="value" id="kpiGate">-</div><div class="sub">checks/rejected</div></div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h3>Alpha Memory — Factor Win Rate</h3>
+    <div id="alphaTable" class="loading">Loading...</div>
+  </div>
+  <div class="card">
+    <h3>Market Regime Performance</h3>
+    <div id="regimeTable" class="loading">Loading...</div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h3>Paper Broker — Recent Orders</h3>
+    <div id="orderTable" class="loading">Loading...</div>
+  </div>
+  <div class="card">
+    <h3>Unified Strategy Bank — Top 5</h3>
+    <div id="bankTable" class="loading">Loading...</div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h3>Macro Indicators</h3>
+    <div id="macroTable" class="loading">Loading...</div>
+  </div>
+  <div class="card">
+    <h3>Auto Trade Control</h3>
+    <div style="margin:12px 0">
+      <button class="btn btn-off" id="autoTradeBtn" onclick="toggleAutoTrade()">AUTO TRADE: OFF</button>
+      <span id="autoTradeStatus" style="margin-left:12px;font-size:12px;color:var(--muted)"></span>
+    </div>
+    <div id="signalQueue" style="font-size:12px;color:var(--muted)"></div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+async function api(url){const r=await fetch(url);return r.json()}
+
+async function refresh(){
+  try{
+    const s=await api('/api/v2/status');
+    $('kpiSignals').textContent=s.alpha_signals||0;
+    $('kpiFactors').textContent=s.factors||0;
+    if(s.broker){$('kpiPnl').textContent='\xA5'+((s.broker.pnl||0)/1).toFixed(0);$('kpiPnl').className='value '+(s.broker.pnl>=0?'good':'bad')}
+    $('kpiBacktests').textContent=s.backtests||0;
+    if(s.bank){$('kpiBank').textContent=s.bank.total||0}
+    if(s.risk_gate){const g=s.risk_gate;$('kpiGate').textContent=(g.total_checks||0)+'/'+(g.total_rejected||0)}
+  }catch(e){}
+
+  try{
+    const a=await api('/api/v2/alpha/stats');
+    if(a.ok){
+      let rows='<table><tr><th>Factor</th><th>Signals</th><th>Win Rate</th><th>Avg PnL</th></tr>';
+      const wr=a.win_rate_by_factor||{};
+      Object.entries(wr).sort((a,b)=>b[1].total-a[1].total).slice(0,10).forEach(([n,s])=>{
+        rows+=`<tr><td>${n}</td><td>${s.total}</td><td class="${s.win_rate>=.5?'good':'bad'}">${(s.win_rate*100).toFixed(0)}%</td><td>${(s.avg_pnl_pct*100).toFixed(2)}%</td></tr>`;
+      });
+      $('alphaTable').innerHTML=rows+'</table>';
+
+      const rm=a.regime_matrix||{};
+      const labels={0:'HighVol Up',1:'HighVol Down',2:'LowVol Range',3:'HighVol Rev'};
+      let rr='<table><tr><th>Regime</th><th>Signals</th><th>WinRate</th><th>AvgPnL</th><th>Best Factors</th></tr>';
+      Object.entries(rm).forEach(([rid,s])=>{
+        rr+=`<tr><td>${labels[rid]||rid}</td><td>${s.total_signals}</td><td class="${s.win_rate>=.5?'good':'bad'}">${(s.win_rate*100).toFixed(0)}%</td><td>${(s.avg_pnl_pct*100).toFixed(2)}%</td><td style="font-size:10px">${(s.best_factors||[]).join(', ')}</td></tr>`;
+      });
+      $('regimeTable').innerHTML=rr+'</table>';
+    }
+  }catch(e){$('alphaTable').textContent='Error: '+e}
+
+  try{
+    const o=await api('/api/v2/broker/orders');
+    if(o.ok&&o.orders){
+      let rows='<table><tr><th>ID</th><th>Symbol</th><th>Action</th><th>Qty</th><th>Price</th><th>Status</th></tr>';
+      o.orders.slice(0,10).forEach(o=>{
+        const sc={'filled':'good','rejected':'bad','pending':'warn'}[o.status]||'';
+        rows+=`<tr><td style="font-size:10px">${o.id}</td><td>${o.symbol}</td><td>${o.action}</td><td>${o.quantity}</td><td>${o.price.toFixed(2)}</td><td class="${sc}">${o.status}</td></tr>`;
+      });
+      $('orderTable').innerHTML=rows+'</table>';
+    }
+  }catch(e){$('orderTable').textContent='Error: '+e}
+
+  try{
+    const b=await api('/api/v2/bank/unified');
+    if(b.ok&&b.best){
+      let rows='<table><tr><th>#</th><th>Name</th><th>Source</th><th>Fitness</th></tr>';
+      b.best.slice(0,5).forEach((s,i)=>{
+        rows+=`<tr><td>${i+1}</td><td>${s.name||'?'}</td><td>${s.source||''}</td><td class="${(s.fitness||0)>0?'good':'bad'}">${(s.fitness||0).toFixed(2)}</td></tr>`;
+      });
+      $('bankTable').innerHTML=rows+'</table>';
+    }
+  }catch(e){$('bankTable').textContent='Error: '+e}
+
+  try{
+    const m=await api('/api/v2/macro/indicators');
+    if(m.ok){
+      $('macroTable').innerHTML='<table><tr><th>Code</th><th>Latest</th></tr>'+m.indicators.map(c=>`<tr><td>${c}</td><td id="macro_${c}" style="color:var(--muted)">-</td></tr>`).join('')+'</table>';
+      m.indicators.forEach(c=>{
+        fetch('/api/v2/macro/latest/'+c).then(r=>r.json()).then(d=>{
+          if(d.ok){const el=$('macro_'+c);if(el)el.textContent=d.date+': '+d.value}
+        }).catch(()=>{});
+      });
+    }
+  }catch(e){$('macroTable').textContent='Error: '+e}
+
+  try{
+    const at=await api('/api/v2/broker/auto_trade');
+    const btn=$('autoTradeBtn');
+    if(at.auto_trade_enabled){btn.textContent='AUTO TRADE: ON';btn.className='btn btn-on'}
+    else{btn.textContent='AUTO TRADE: OFF';btn.className='btn btn-off'}
+    $('autoTradeStatus').textContent=at.queued_signals+' signals queued';
+  }catch(e){}
+}
+
+function toggleAutoTrade(){
+  fetch('/api/v2/broker/auto_trade',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({enabled:$('autoTradeBtn').textContent.includes('OFF')})})
+  .then(r=>r.json()).then(d=>{refresh()});
+}
+
+setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString()},1000);
+setInterval(refresh,15000);
+refresh();
+</script></body></html>"""
+
+from flask import render_template_string
 
 @app.route('/classic')
 def classic_dashboard():
@@ -3196,6 +3375,204 @@ def api_game_rank():
     finally:
         conn.close()
 
+
+
+# ═══════════════════════════════════════════════════════════
+# v2.0 API — Alpha Memory / Paper Broker / Macro / Fundamental
+# ═══════════════════════════════════════════════════════════
+
+@app.route('/api/v2/alpha/stats')
+def api_v2_alpha_stats():
+    try:
+        from src.ai.alpha_store import alpha_store
+        return jsonify({
+            "ok": True,
+            "total_signals": alpha_store.count(),
+            "win_rate_by_factor": alpha_store.get_win_rate_by_factor(days=90),
+            "regime_matrix": alpha_store.get_regime_performance_matrix(days=180),
+            "factor_health": alpha_store.get_factor_health(),
+            "recent_signals": alpha_store.get_recent(limit=20),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/v2/alpha/factor_health')
+def api_v2_alpha_factor_health():
+    try:
+        from src.ai.alpha_store import alpha_store
+        return jsonify({"ok": True, "health": alpha_store.get_factor_health()})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/v2/broker/status')
+def api_v2_broker_status():
+    try:
+        from src.execution.paper_broker import paper_broker
+        from src.risk.gate import default_gate
+        return jsonify({
+            "ok": True,
+            "broker": paper_broker.stats(),
+            "gate": default_gate.stats,
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/v2/broker/orders')
+def api_v2_broker_orders():
+    try:
+        from src.execution.paper_broker import OrderDB
+        db = OrderDB()
+        orders = db.load_all_orders(1, limit=50)
+        return jsonify({
+            "ok": True,
+            "orders": [
+                {"id": o.order_id[:12], "symbol": o.symbol, "action": o.action,
+                 "quantity": o.quantity, "price": o.price, "status": o.status,
+                 "filled_qty": o.filled_qty, "created_at": o.created_at}
+                for o in orders
+            ]
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/v2/broker/auto_trade', methods=['GET', 'POST'])
+def api_v2_broker_auto_trade():
+    try:
+        from src.execution.bridge import bridge
+        if request.method == 'POST':
+            enabled = request.json.get("enabled", False)
+            bridge.toggle_auto_trade(enabled)
+        return jsonify({
+            "ok": True,
+            "auto_trade_enabled": bridge.auto_trade_enabled,
+            "queued_signals": len(bridge.get_recent_signals(50)),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/v2/macro/indicators')
+def api_v2_macro_indicators():
+    try:
+        from src.data.macro_fetchers import FETCHER_MAP
+        return jsonify({
+            "ok": True,
+            "indicators": list(FETCHER_MAP.keys()),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/v2/macro/latest/<code>')
+def api_v2_macro_latest(code: str):
+    try:
+        from src.data.macro_fetchers import get_macro_data
+        df = get_macro_data(code)
+        if df is not None and not df.empty:
+            latest = df.iloc[-1]
+            return jsonify({
+                "ok": True, "code": code,
+                "date": str(latest["date"])[:10],
+                "value": float(latest["value"]),
+            })
+        return jsonify({"ok": False, "error": "无数据"}), 404
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/v2/fundamental/<symbol>')
+def api_v2_fundamental(symbol: str):
+    try:
+        from src.data.financials import financial_db
+        from src.data.stock_db import ensure_stock_db
+        name = ensure_stock_db().get_name(symbol) if ensure_stock_db().count() > 0 else symbol
+        pe = financial_db.get_pe_series(symbol)
+        pb = financial_db.get_pb_series(symbol)
+        roe = financial_db.get_roe_series(symbol)
+        def series_to_list(df, col):
+            if df is None or df.empty: return []
+            c = [x for x in df.columns if x != "date"][0]
+            return [{"date": str(r["date"])[:10], "value": float(r[c])}
+                    for _, r in df.iterrows()]
+        return jsonify({
+            "ok": True, "symbol": symbol, "name": name,
+            "pe_history": series_to_list(pe, "pe"),
+            "pb_history": series_to_list(pb, "pb"),
+            "roe_history": series_to_list(roe, "roe"),
+            "needs_update": financial_db.needs_update(symbol),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/v2/factors/correlation')
+def api_v2_factor_correlation():
+    try:
+        from src.analysis.factor_correlation import analyze_factor_correlation
+        symbol = request.args.get("symbol", "600519")
+        result = analyze_factor_correlation(symbol, start_date="2024-01-01")
+        high_pairs = result.get("high_pairs", [])
+        return jsonify({
+            "ok": True, "symbol": symbol,
+            "factor_count": result.get("factor_count", 0),
+            "high_pairs": [{"a": a, "b": b, "r": r} for a, b, r in high_pairs[:10]],
+            "suggestions": result.get("suggestions", []),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/v2/bank/unified')
+def api_v2_bank_unified():
+    try:
+        from src.ai.bank_bridge import unified_bank
+        return jsonify({
+            "ok": True,
+            "stats": unified_bank.stats(),
+            "best": unified_bank.get_best(n=10),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/v2/risk/gate/stats')
+def api_v2_risk_gate_stats():
+    try:
+        from src.risk.gate import default_gate
+        return jsonify({"ok": True, "stats": default_gate.stats})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/v2/status')
+def api_v2_status():
+    """v2.0 综合状态"""
+    result = {"ok": True, "version": "2.0.0-alpha.1"}
+    try:
+        from src.ai.alpha_store import alpha_store
+        result["alpha_signals"] = alpha_store.count()
+    except: pass
+    try:
+        from src.execution.paper_broker import paper_broker
+        result["broker"] = paper_broker.stats()
+    except: pass
+    try:
+        from src.backtest.batch_runner import ResultDB
+        result["backtests"] = ResultDB().summary().get("总回测数", 0)
+    except: pass
+    try:
+        from src.factors.definitions import FACTOR_REGISTRY
+        result["factors"] = len(FACTOR_REGISTRY)
+    except: pass
+    try:
+        from src.ai.bank_bridge import unified_bank
+        result["bank"] = unified_bank.stats()
+    except: pass
+    return jsonify(result)
 
 
 if __name__ == '__main__':
