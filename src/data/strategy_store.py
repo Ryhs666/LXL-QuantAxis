@@ -292,6 +292,10 @@ class StrategyBank:
                 ).fetchone()[0]
             return {"strategies": sc, "backtests": bc, "notes": nc}
 
+    def iter_for_memory_import(self, owner_id: int) -> List[dict]:
+        """Return a read-only snapshot for the V2 Alpha Memory importer."""
+        return self.list_strategies(owner_id=owner_id, include_unowned=False)
+
 
 # 全局单例
 bank = StrategyBank()
