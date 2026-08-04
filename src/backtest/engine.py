@@ -192,7 +192,6 @@ class Portfolio:
 
     def to_immutable_ledger(self, currency: str = "CNY"):
         """Replay legacy long fills into the V2 append-only accounting ledger."""
-        from datetime import datetime
         from decimal import Decimal
 
         from src.lxl_quantaxis.portfolio import FillSide, PortfolioLedger, TradeFill
