@@ -49,6 +49,9 @@ class StrategyGene:
     fitness: float = 0.0              # 夏普比率
     generation: int = 0
     parent: str = ""
+    cross_symbol_performance: Dict[str, float] = field(default_factory=dict)  # {symbol: sharpe}
+    is_validated: bool = False        # 已跨股票验证?
+    regime_performance: Dict[int, float] = field(default_factory=dict)  # {regime_id: sharpe}
 
     def to_composer(self) -> SignalComposer:
         composer = SignalComposer(self.name or f"Gene_{id(self)}")
@@ -72,6 +75,9 @@ class StrategyGene:
             "buy_factors": self.buy_factors, "sell_factors": self.sell_factors,
             "buy_logic": self.buy_logic, "buy_threshold": self.buy_threshold,
             "sell_logic": self.sell_logic, "sell_threshold": self.sell_threshold,
+            "cross_symbol_performance": self.cross_symbol_performance,
+            "is_validated": self.is_validated,
+            "regime_performance": self.regime_performance,
         }
 
     @classmethod
@@ -535,7 +541,8 @@ class StrategyBank:
 # ============================================================
 
 def auto_evolve(symbol: str = "601398", generations: int = 5,
-                use_ai: bool = True, verbose: bool = True) -> dict:
+                use_ai: bool = True, verbose: bool = True,
+                revalidate: bool = True) -> dict:
     """
     一键自动进化
 
@@ -543,14 +550,17 @@ def auto_evolve(symbol: str = "601398", generations: int = 5,
       1. AI 分析回测数据
       2. AI 生成种子策略 (可选)
       3. 遗传算法进化
-      4. 最佳策略存入银行
+      4. 跨股票全市场复测 (新增)
+      5. 最佳策略存入统一银行
     """
+    from src.ai.bank_bridge import UnifiedStrategyBank
     bank = StrategyBank()
+    unified = UnifiedStrategyBank()
 
     seeds = []
     if use_ai:
         if verbose:
-            print("\n  [1/3] AI 分析回测数据 + 生成种子策略...")
+            print("\n  [1/4] AI 分析回测数据 + 生成种子策略...")
         try:
             generator = StrategyGenerator()
             seeds = generator.generate_from_analysis(n=4)
@@ -564,31 +574,93 @@ def auto_evolve(symbol: str = "601398", generations: int = 5,
 
     # 遗传进化
     if verbose:
-        print(f"\n  [2/3] 遗传算法进化 ({generations}代)...")
+        print(f"\n  [2/4] 遗传算法进化 ({generations}代)...")
 
     evolver = GeneticEvolver(population_size=20)
     evolver.initialize(seeds)
     result = evolver.evolve(generations, symbol, verbose=verbose)
 
-    # 存入银行
-    if verbose:
-        print(f"\n  [3/3] 存入策略银行...")
-
     best_gene_dict = result.get("best", {})
+    best_gene = None
     if best_gene_dict:
         best_gene = StrategyGene.from_dict(best_gene_dict)
-        bank.deposit(best_gene, best_gene.fitness, source="evolution")
+
+    # ── 第4步: 跨股票全市场复测 ──
+    revalidate_results = None
+    if revalidate and best_gene and best_gene.fitness > 0:
         if verbose:
-            print(f"    ✅ 最佳策略 '{best_gene.name}' (夏普{best_gene.fitness:.2f}) 已入银行")
-            print(f"    📂 银行共 {len(bank.list_all())} 个策略")
+            print(f"\n  [3/4] 跨股票全市场复测...")
+
+        validation_symbols = ["601398", "000858", "600036", "600900", "000333",
+                              "600519", "000001", "002415", "300750", "601318"]
+
+        cross_results = {}
+        composer = best_gene.to_composer()
+        total_symbols = 0
+        sharpe_sum = 0.0
+
+        for vs in validation_symbols:
+            if vs == symbol:
+                continue  # 跳过进化用的标的
+            try:
+                from src.backtest.data_feed import get_data
+                from src.backtest.engine import BacktestEngine
+                data = get_data(vs, "A股", start_date="2024-01-01")
+                if data is None or len(data) < 100:
+                    continue
+                r = BacktestEngine().run(composer.to_strategy(
+                    __import__('src.models.strategy', fromlist=['StrategyConfig']).StrategyConfig(name=vs)
+                ), data)
+                m = r["metrics"]
+                sh = float(str(m.get("夏普比率", -99)))
+                cross_results[vs] = sh
+                sharpe_sum += sh
+                total_symbols += 1
+                if verbose:
+                    tag = "+" if sh > 0 else "-"
+                    print(f"    {vs}: 夏普{sh:+.2f} {tag}")
+            except Exception as e:
+                if verbose:
+                    print(f"    {vs}: 跳过 ({e})")
+                cross_results[vs] = 0.0
+
+        if total_symbols > 0:
+            avg_sharpe = sharpe_sum / total_symbols
+            best_gene.cross_symbol_performance = cross_results
+            best_gene.is_validated = True
+            best_gene.fitness = avg_sharpe  # 用跨股票平均替代单股票
+            revalidate_results = {
+                "symbols_tested": total_symbols,
+                "cross_sharpe": round(avg_sharpe, 3),
+                "best_symbol": max(cross_results, key=cross_results.get),
+                "worst_symbol": min(cross_results, key=cross_results.get),
+                "details": cross_results,
+            }
+            if verbose:
+                print(f"    跨股票平均夏普: {avg_sharpe:+.3f} "
+                      f"(最佳:{revalidate_results['best_symbol']}, "
+                      f"最差:{revalidate_results['worst_symbol']})")
+
+    # ── 第5步: 存入银行 ──
+    if verbose:
+        print(f"\n  [4/4] 存入策略银行...")
+
+    if best_gene and (best_gene.is_validated or best_gene.fitness > 0):
+        bank.deposit(best_gene, best_gene.fitness, source="evolution")
+        # 也存入统一银行
+        unified.deposit(best_gene.to_dict(), source="evolution")
+        if verbose:
+            validated_str = "(已跨市场验证)" if best_gene.is_validated else ""
+            print(f"    OK 最佳策略 '{best_gene.name}' (夏普{best_gene.fitness:.2f}) 已入银行 {validated_str}")
+            print(f"    银行共 {len(bank.list_all())} 个策略")
     else:
         if verbose:
-            print("    ⚠️ 没有生成有效策略")
+            print("    WARN 没有生成有效策略")
 
     # 排名
     all_strategies = bank.list_all()
     if all_strategies and verbose:
-        print(f"\n  🏆 策略银行 TOP 5:")
+        print(f"\n    策略银行 TOP 5:")
         for i, s in enumerate(all_strategies[:5], 1):
             print(f"    {i}. {s['name']} (夏普{s['fitness']:.2f}, 来源={s['source']})")
 
@@ -597,6 +669,7 @@ def auto_evolve(symbol: str = "601398", generations: int = 5,
         "evolution_history": evolver.history,
         "bank_size": len(bank.list_all()),
         "bank_top5": bank.get_best(5),
+        "revalidate": revalidate_results,
     }
 
 

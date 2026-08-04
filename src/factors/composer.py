@@ -41,6 +41,7 @@ class Condition:
     threshold: float          # 阈值
     threshold2: Optional[float] = None  # between 的第二个阈值
     weight: float = 1.0       # 权重（weighted 模式使用）
+    decay_factor: float = 1.0  # IC衰减系数 (1.0=正常, 0.0=禁用, 0.3=严重衰减)
 
 
 @dataclass
@@ -238,7 +239,7 @@ class SignalComposer:
         return None
 
     def _eval_rule(self, rule: SignalRule, calc: FactorCalculator) -> bool:
-        """评估单条规则是否触发"""
+        """评估单条规则是否触发 (考虑IC衰减系数)"""
         if not rule.conditions:
             return False
 
@@ -249,12 +250,13 @@ class SignalComposer:
             val = self._get_factor_value(cond.factor, calc)
             if val is None or np.isnan(val):
                 results.append(False)
-                weights.append(cond.weight)
+                weights.append(cond.weight * cond.decay_factor)
                 continue
 
             ok = self._check_operator(val, cond.operator, cond.threshold, cond.threshold2)
             results.append(ok)
-            weights.append(cond.weight)
+            # 权重乘以IC衰减系数: 衰减因子 > 禁用, 权重降低
+            weights.append(cond.weight * cond.decay_factor)
 
         if rule.logic == "and":
             return all(results)
@@ -265,6 +267,34 @@ class SignalComposer:
             return score >= rule.threshold
 
         return False
+
+    def apply_decay(self, factor_name: str, decay: float):
+        """对指定因子的所有条件应用IC衰减系数
+
+        decay: 0.0=禁用, 0.3=严重衰减, 0.5=轻度衰减, 1.0=正常
+        """
+        for rule in self.buy_rules + self.sell_rules:
+            for cond in rule.conditions:
+                if cond.factor == factor_name:
+                    cond.decay_factor = decay
+
+    def get_active_factors(self) -> List[str]:
+        """获取当前所有非禁用因子"""
+        active = set()
+        for rule in self.buy_rules + self.sell_rules:
+            for cond in rule.conditions:
+                if cond.decay_factor > 0:
+                    active.add(cond.factor)
+        return sorted(active)
+
+    def get_decaying_factors(self) -> Dict[str, float]:
+        """获取所有衰减中的因子及其系数"""
+        decaying = {}
+        for rule in self.buy_rules + self.sell_rules:
+            for cond in rule.conditions:
+                if cond.decay_factor < 1.0:
+                    decaying[cond.factor] = cond.decay_factor
+        return decaying
 
     def _get_factor_value(self, factor: str, calc: FactorCalculator) -> Optional[float]:
         """获取最新因子值"""

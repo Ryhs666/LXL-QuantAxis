@@ -22,8 +22,8 @@ except ImportError:
 # 默认配置
 DEFAULTS = {
     # ---- 系统 ----
-    "project_name": "投资策略模型系统",
-    "version": "0.3.0",
+    "project_name": "LXL·QuantAxis",
+    "version": "2.0.0-alpha.1",
     "log_level": "INFO",
     "log_dir": "D:/trading_data/logs",
 

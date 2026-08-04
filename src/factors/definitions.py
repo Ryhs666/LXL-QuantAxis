@@ -12,6 +12,7 @@
   - composite 复合类: 多因子加权组合
 """
 
+import json
 from dataclasses import dataclass, field
 from typing import Optional, Callable
 import pandas as pd
@@ -438,6 +439,61 @@ class FactorCalculator:
                 active.append(name)
         return active
 
+    def auto_reduce_weights(self, composer, alpha_store=None) -> dict:
+        """
+        根据 IC 衰减状态自动调整 SignalComposer 中因子的权重。
+
+        composer: SignalComposer 实例
+        alpha_store: AlphaSignalStore 实例 (可选, 用于记录操作)
+
+        返回: {factor_name: old_decay → new_decay}
+        """
+        changes = {}
+        for name, status in self._decay_status.items():
+            decaying = status.get("decaying", False)
+            below_zero = status.get("below_zero_streak", 0)
+            current_ic = status.get("current_ic", 0)
+
+            # 确定目标衰减系数
+            if decaying:
+                target_decay = 0.0   # 连续5天IC<0 → 完全禁用
+            elif below_zero >= 3:
+                target_decay = 0.3   # 连续3-4天IC<0 → 严重降权
+            elif current_ic < 0.01:
+                target_decay = 0.5   # IC接近0 → 轻度降权
+            else:
+                target_decay = 1.0   # 正常
+
+            # 获取当前衰减系数
+            current_decay = 1.0
+            decaying_factors = composer.get_decaying_factors()
+            if name in decaying_factors:
+                current_decay = decaying_factors[name]
+
+            if abs(current_decay - target_decay) > 0.01:
+                composer.apply_decay(name, target_decay)
+                changes[name] = {
+                    "old_decay": current_decay,
+                    "new_decay": target_decay,
+                    "reason": f"IC={current_ic:.4f}, streak={below_zero}d",
+                }
+
+                # 记录到 AlphaSignalStore
+                if alpha_store:
+                    try:
+                        alpha_store.record_signal(
+                            source="ic_decay",
+                            symbol="",
+                            factor_name=name,
+                            factor_values=json.dumps(status, default=str),
+                            signal_action="" if target_decay > 0 else "DISABLE",
+                            signal_strength=1.0 - target_decay,
+                        )
+                    except Exception:
+                        pass
+
+        return changes
+
 
 # ============================================================
 # 因子注册表
@@ -462,4 +518,15 @@ FACTOR_REGISTRY = {
     "obv_divergence":    Factor("obv_divergence", "volume",    "OBV与价格背离检测", {"period": 20}),
     "hammer":            Factor("hammer",       "pattern",     "锤子线检测", {}),
     "engulfing":         Factor("engulfing",    "pattern",     "吞没形态检测", {}),
+    # ── 情绪因子 (来自 SentimentAnalyzer) ──
+    "sentiment_score":   Factor("sentiment_score", "sentiment", "AI舆情情绪得分(0悲观-1乐观)", {}),
+    "sentiment_heat":    Factor("sentiment_heat",  "sentiment", "舆情热度因子(帖子环比)", {}),
+    "sentiment_extreme": Factor("sentiment_extreme", "sentiment", "情绪极端反转信号(-1卖/0中性/+1买)", {}),
+    # ── 基本面因子 (来自 FundamentalFactors) ──
+    "pe_percentile":     Factor("pe_percentile",   "fundamental", "PE历史分位(低=便宜)", {}),
+    "pb_percentile":     Factor("pb_percentile",   "fundamental", "PB历史分位", {}),
+    "roe_trend":         Factor("roe_trend",       "fundamental", "ROE季度趋势", {}),
+    "profit_margin_change": Factor("profit_margin_change", "fundamental", "利润率变化", {}),
+    "revenue_acceleration": Factor("revenue_acceleration", "fundamental", "营收增长加速", {}),
+    "industry_relative_pe": Factor("industry_relative_pe", "fundamental", "行业内相对PE", {}),
 }

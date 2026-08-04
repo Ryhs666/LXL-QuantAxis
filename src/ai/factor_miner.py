@@ -194,7 +194,7 @@ class AIFactorMiner:
 
     def register_factor(self, factor_def: Dict) -> bool:
         """
-        将AI生成的因子动态注册到 FACTOR_REGISTRY
+        将AI生成的因子动态注册到 FACTOR_REGISTRY, 并持久化到磁盘
         """
         try:
             from src.factors.definitions import Factor, FACTOR_REGISTRY, FactorCalculator
@@ -227,6 +227,13 @@ class AIFactorMiner:
                     description=description,
                     compute=calc_fn,
                 )
+                # 持久化到磁盘, 下次启动自动恢复
+                try:
+                    from src.ai.factor_persistence import factor_persistence
+                    factor_persistence.save_factor(factor_def)
+                except ImportError:
+                    pass
+
                 return True
             return False
         except Exception as e:

@@ -274,7 +274,7 @@ class SentimentAnalyzer:
                 extreme_signal = "buy"   # 过度悲观 → 买入
 
         # 存储历史
-        self._history.append({
+        record = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "symbol": symbol,
             "avg_score": round(avg_score, 3),
@@ -283,7 +283,31 @@ class SentimentAnalyzer:
             "sentiment_score": sentiment_score,
             "heat_factor": heat_factor,
             "extreme_signal": extreme_signal,
-        })
+        }
+        self._history.append(record)
+
+        # 写入 AlphaSignalStore (情绪信号记忆)
+        try:
+            from src.ai.alpha_store import alpha_store
+            signal_action = ""
+            if extreme_signal == "buy":
+                signal_action = "BUY"
+            elif extreme_signal == "sell":
+                signal_action = "SELL"
+            alpha_store.record_signal(
+                source="sentiment",
+                symbol=symbol,
+                factor_name="sentiment_score",
+                factor_values=json.dumps({
+                    "sentiment_score": sentiment_score,
+                    "heat_factor": heat_factor,
+                    "extreme_signal": extreme_signal,
+                }),
+                signal_action=signal_action,
+                signal_strength=sentiment_score,
+            )
+        except ImportError:
+            pass
 
         return {
             "symbol": symbol,

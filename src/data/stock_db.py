@@ -38,9 +38,15 @@ class StockNameDB:
                     name TEXT NOT NULL,
                     market TEXT NOT NULL,
                     industry TEXT DEFAULT '',
+                    shenwan_industry TEXT DEFAULT NULL,
                     updated_at TEXT DEFAULT ''
                 )
             """)
+            # 兼容旧表: 如果 shenwan_industry 列不存在, 添加它
+            try:
+                c.execute("ALTER TABLE stocks ADD COLUMN shenwan_industry TEXT DEFAULT NULL")
+            except sqlite3.OperationalError:
+                pass  # 列已存在
             c.execute("CREATE INDEX IF NOT EXISTS idx_name ON stocks(name)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_market ON stocks(market)")
 
@@ -209,8 +215,82 @@ class StockNameDB:
         return {"total": total, "by_market": markets}
 
 
+# ═══════════════════════════════════════════
+# 申万行业分类
+# ═══════════════════════════════════════════
+
+class IndustryClassifier:
+    """申万行业分类器"""
+
+    def __init__(self):
+        self._industries = {}  # symbol → industry_name
+
+    def download_shenwan(self, verbose: bool = True) -> dict:
+        """下载申万行业分类, 返回 {symbol: industry_name}"""
+        try:
+            import akshare as ak
+            industries = {}
+            # 获取所有申万一级行业
+            df_sw = ak.stock_board_industry_cons_em(symbol="申万一级行业")
+            if df_sw is None or df_sw.empty:
+                # fallback: use stock_board_industry_name_em
+                df_sw = ak.stock_board_industry_name_em()
+                if df_sw is None or df_sw.empty:
+                    return industries
+
+            for _, row in df_sw.iterrows():
+                code = str(row.get("代码", row.get("code", ""))).strip()
+                name = str(row.get("名称", row.get("name", row.get("板块名称", "")))).strip()
+                if code and name:
+                    industries[code] = name
+
+            self._industries = industries
+            if verbose:
+                print(f"  OK {len(industries)} 个申万行业已加载")
+
+            # 更新 stock_db 中的行业字段
+            try:
+                db = ensure_stock_db()
+                with db._conn() as conn:
+                    for symbol, ind_name in industries.items():
+                        conn.execute(
+                            "UPDATE stocks SET shenwan_industry = ? WHERE code = ? AND shenwan_industry IS NULL",
+                            (ind_name, symbol)
+                        )
+                    conn.commit()
+            except Exception:
+                pass
+
+            return industries
+        except Exception as e:
+            if verbose:
+                print(f"  行业分类下载失败: {e}")
+            return {}
+
+    def get_industry(self, symbol: str) -> str:
+        """查询个股申万行业"""
+        if not self._industries:
+            self._industries = self.download_shenwan(verbose=False)
+        return self._industries.get(symbol.strip(), "")
+
+    def get_stocks_in_industry(self, industry_name: str) -> list:
+        """获取某行业的所有股票"""
+        if not self._industries:
+            self._industries = self.download_shenwan(verbose=False)
+        return [s for s, ind in self._industries.items() if ind == industry_name]
+
+    def get_industry_peers(self, symbol: str) -> list:
+        """获取同行业股票"""
+        ind = self.get_industry(symbol)
+        if not ind:
+            return []
+        peers = self.get_stocks_in_industry(ind)
+        return [p for p in peers if p != symbol]
+
+
 # 全局单例
 stock_db = StockNameDB()
+industry_classifier = IndustryClassifier()
 
 
 def ensure_stock_db():
