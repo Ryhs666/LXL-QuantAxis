@@ -37,6 +37,7 @@ if sys.platform == "win32":
 sys.path.insert(0, os.path.dirname(__file__))
 
 from src.lxl_quantaxis.version import __version__
+from src.lxl_quantaxis.api.legacy import V2_API_PREFIX
 
 
 def clear_screen():

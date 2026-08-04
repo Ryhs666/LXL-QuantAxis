@@ -9,6 +9,7 @@ from tkinter import ttk, scrolledtext
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from src.lxl_quantaxis.version import __version__
+from src.lxl_quantaxis.api.legacy import V2_API_PREFIX
 
 # ═══════════════════════════════════════════════════════════
 # 主题

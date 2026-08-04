@@ -12,6 +12,7 @@ from src.lxl_quantaxis.core.security.settings import (
     SecurityConfigurationError,
     SecuritySettings,
 )
+from src.lxl_quantaxis.api.legacy import V2_API_PREFIX
 
 SECURITY_SETTINGS = SecuritySettings.from_env()
 if SECURITY_SETTINGS.is_production:

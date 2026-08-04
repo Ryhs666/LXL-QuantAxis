@@ -24,6 +24,7 @@ from src.auth import (
 from src.lxl_quantaxis.data.contracts import StorageKey
 from src.lxl_quantaxis.data.storage import DataRoot, LegacyCsvAdapter, LegacySqliteAdapter, LocalStorageAdapter
 from src.lxl_quantaxis.version import __version__
+from src.lxl_quantaxis.api.legacy import V2_API_PREFIX
 
 
 def _current_data_root():
