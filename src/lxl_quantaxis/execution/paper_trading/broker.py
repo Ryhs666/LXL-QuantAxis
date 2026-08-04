@@ -7,6 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from src.lxl_quantaxis.execution.orders import Fill, MarketQuote, Order, OrderSide, OrderStatus
+from src.lxl_quantaxis.ops import OperationalKillSwitch
 from src.lxl_quantaxis.portfolio.accounting import FillSide, PortfolioLedger, TradeFill
 
 
@@ -25,10 +26,17 @@ class ReconciliationReport:
 class PaperBroker:
     """Stateful simulator; inputs and persisted records remain immutable."""
 
-    def __init__(self, *, initial_cash: Decimal, currency: str = "CNY") -> None:
+    def __init__(
+        self,
+        *,
+        initial_cash: Decimal,
+        currency: str = "CNY",
+        kill_switch: OperationalKillSwitch | None = None,
+    ) -> None:
         self.orders: dict[str, Order] = {}
         self.fills: list[Fill] = []
         self.ledger = PortfolioLedger(initial_cash, currency)
+        self.kill_switch = kill_switch or OperationalKillSwitch()
 
     def submit(self, order: Order) -> Order:
         existing = self.orders.get(order.order_id)
@@ -110,6 +118,8 @@ class PaperBroker:
         )
 
     def _submission_rejection(self, order: Order) -> str:
+        if self.kill_switch.active:
+            return "operational kill switch is active"
         if not order.order_id.strip() or not order.symbol.strip() or order.quantity <= 0:
             return "invalid order fields"
         if order.quantity % 100 != 0:

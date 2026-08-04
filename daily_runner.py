@@ -384,9 +384,22 @@ def _save_trade_logs(user_id: int, results: list):
         db.close()
 
 
-def run_v2_daily_brief(orchestrator, context):
+def run_v2_daily_brief(orchestrator, context, telemetry=None, correlation_id="daily-brief"):
     """Compatibility entry point; V2 application service owns orchestration."""
-    return orchestrator.run(context)
+    if telemetry is None:
+        return orchestrator.run(context)
+    from src.lxl_quantaxis.core.observability import correlation_scope, reset_correlation, run_observed
+
+    token = correlation_scope(correlation_id)
+    try:
+        return run_observed(
+            "daily_brief",
+            lambda: orchestrator.run(context),
+            sink=telemetry,
+            attributes={"organization_id": context.organization_id},
+        )
+    finally:
+        reset_correlation(token)
 
 
 if __name__ == "__main__":
