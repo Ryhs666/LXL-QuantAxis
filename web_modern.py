@@ -13,7 +13,7 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, request, jsonify, render_template, redirect
+from flask import Flask, request, jsonify, render_template, render_template_string, redirect
 from datetime import datetime, timedelta
 from src.auth import token_required, admin_required
 
@@ -1599,7 +1599,7 @@ setInterval(refresh,15000);
 refresh();
 </script></body></html>"""
 
-from flask import render_template_string
+# (render_template_string imported at top of file)
 
 @app.route('/classic')
 def classic_dashboard():
