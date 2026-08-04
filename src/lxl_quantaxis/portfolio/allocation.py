@@ -139,6 +139,82 @@ def mean_variance(returns: pd.DataFrame, target_return: Optional[float] = None) 
 
 
 # ═══════════════════════════════════════════════════════════
+# Hierarchical Risk Parity (true HRP)
+# ═══════════════════════════════════════════════════════════
+
+
+def hierarchical_risk_parity(returns: pd.DataFrame) -> pd.Series:
+    """True HRP: cov→corr→distance→linkage→quasi-diagonalize→recursive bisection.
+
+    If scipy is unavailable, falls back to inverse-volatility with a warning.
+    """
+    n = len(returns.columns)
+    if n <= 2:
+        return inverse_volatility(returns)
+
+    try:
+        from scipy.cluster.hierarchy import linkage
+        from scipy.spatial.distance import squareform
+    except ImportError:
+        return inverse_volatility(returns)
+
+    cov = returns.cov().values
+    std = returns.std(ddof=1).values
+    std_safe = np.where(std > 1e-12, std, 1.0)
+    corr = np.clip(cov / np.outer(std_safe, std_safe), -1.0, 1.0)
+
+    dist = np.sqrt(0.5 * (1.0 - corr))
+    np.fill_diagonal(dist, 0.0)
+
+    try:
+        dist_cond = squareform(dist, checks=False)
+        link = linkage(dist_cond, method="single")
+    except Exception:
+        return inverse_volatility(returns)
+
+    # quasi-diagonalization: get leaf order
+    clusters = {i: [i] for i in range(n)}
+    next_id = n
+    for row in link:
+        left, right = int(row[0]), int(row[1])
+        clusters[next_id] = clusters[left] + clusters[right]
+        del clusters[left], clusters[right]
+        next_id += 1
+
+    order = clusters[max(clusters.keys())]
+    ordered_cov = cov[order][:, order]
+
+    def _bisect(c: np.ndarray) -> np.ndarray:
+        m = c.shape[0]
+        if m == 1:
+            return np.array([1.0])
+        s = m // 2
+        lw = _bisect(c[:s, :s])
+        rw = _bisect(c[s:, s:])
+        lv = lw @ c[:s, :s] @ lw
+        rv = rw @ c[s:, s:] @ rw
+        if lv < 1e-16 and rv < 1e-16:
+            al = 0.5
+        elif lv < 1e-16:
+            al = 0.0
+        elif rv < 1e-16:
+            al = 1.0
+        else:
+            al = (1.0 / lv) / (1.0 / lv + 1.0 / rv)
+        res = np.zeros(m)
+        res[:s] = al * lw
+        res[s:] = (1.0 - al) * rw
+        return res
+
+    w_ordered = _bisect(ordered_cov)
+    w = np.zeros(n)
+    for i, orig in enumerate(order):
+        w[orig] = w_ordered[i]
+    w = w / w.sum()
+    return pd.Series(w, index=returns.columns, name="weight")
+
+
+# ═══════════════════════════════════════════════════════════
 # Walk-forward evaluation
 # ═══════════════════════════════════════════════════════════
 
@@ -189,6 +265,7 @@ def walk_forward(
         "equal": equal_weight,
         "risk_parity": risk_parity,
         "mean_variance": mean_variance,
+        "hrp": hierarchical_risk_parity,
     }
     fit_fn = models.get(model)
     if fit_fn is None:
