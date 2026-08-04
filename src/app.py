@@ -150,6 +150,7 @@ class App:
             ("ANALYSIS", "分析复盘", PNK, [
                 ("绩效分析报告", self._analysis),
                 ("因子体系 (28)", self._factors),
+                ("因子相关性分析", self._factor_corr),
             ]),
         ]
 
@@ -1512,6 +1513,20 @@ class App:
             self._log(f"  600519(茅台) 行业: {ind or '未分类'}")
             if peers:
                 self._log(f"  同行业标的 ({len(peers)}): {peers[:10]}...")
+        except Exception as e:
+            self._log(f"  [失败] {e}")
+
+    def _factor_corr(self):
+        """因子相关性分析"""
+        self._bg(lambda: self._run_factor_corr(), "FACTOR_CORR")
+
+    def _run_factor_corr(self):
+        self._log("\n═══ 因子相关性分析 (600519) ═══")
+        try:
+            from src.analysis.factor_correlation import analyze_factor_correlation, print_correlation_report
+            result = analyze_factor_correlation("600519", start_date="2024-01-01",
+                                                 save_dir="D:/trading_data/charts")
+            print_correlation_report(result)
         except Exception as e:
             self._log(f"  [失败] {e}")
 
