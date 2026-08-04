@@ -192,41 +192,66 @@ class AIFactorMiner:
     # 3. 动态注册因子
     # ═══════════════════════════════════════════
 
+    # ── Safe operation whitelist (no exec/eval) ──
+    _SAFE_OPS = {
+        "pct_change": lambda data, period: data["close"].pct_change(period),
+        "rolling_mean": lambda data, period: data["close"].rolling(period).mean(),
+        "rolling_std": lambda data, period: data["close"].rolling(period).std(),
+        "rolling_max": lambda data, period: data["close"].rolling(period).max(),
+        "rolling_min": lambda data, period: data["close"].rolling(period).min(),
+        "ema": lambda data, period: data["close"].ewm(span=period).mean(),
+        "volume_ratio": lambda data, period: data["volume"] / data["volume"].rolling(period).mean(),
+        "high_low_range": lambda data, period: (data["high"] - data["low"]) / data["close"],
+        "close_position": lambda data, period: (data["close"] - data["low"]) / (data["high"] - data["low"] + 1e-8),
+    }
+
     def register_factor(self, factor_def: Dict) -> bool:
         """
-        将AI生成的因子动态注册到 FACTOR_REGISTRY
+        Register an AI-generated factor using ONLY safe, whitelisted operations.
+
+        AI output is parsed as structured JSON with:
+          {name, category, chinese_name, operator, period, normalization}
+        No raw Python code is executed. All computations use pre-audited ops.
         """
         try:
-            from src.factors.definitions import Factor, FACTOR_REGISTRY, FactorCalculator
+            from src.factors.definitions import Factor, FACTOR_REGISTRY
 
-            name = factor_def["name"]
-            category = factor_def.get("category", "composite")
-            description = factor_def.get("chinese_name", factor_def.get("logic", "")[:50])
+            name = str(factor_def.get("name", "")).strip()
+            if not name or not name.isidentifier():
+                print(f"[AIFactorMiner] 拒绝非法因子名: {name!r}")
+                return False
 
-            # 编译Python代码
-            code = factor_def.get("python_code", "")
-            # 提取函数体
-            func_match = re.search(r'def calc_factor\s*\(data\)\s*:(.*?)(?=\n\S|\Z)',
-                                   code, re.DOTALL)
-            if func_match:
-                func_body = func_match.group(1)
-            else:
-                func_body = code
+            category = str(factor_def.get("category", "composite")).strip()
+            description = str(factor_def.get("chinese_name", factor_def.get("logic", "")))[:100]
+            operator = str(factor_def.get("operator", "pct_change")).strip()
+            period = int(factor_def.get("period", 20))
 
-            # 创建可调用函数
-            namespace = {"pd": pd, "np": np}
-            full_code = f"def calc(data):\n{func_body}"
-            exec(full_code, namespace)
-            calc_fn = namespace.get("calc")
+            if operator not in self._SAFE_OPS:
+                print(f"[AIFactorMiner] 不支持的算子: {operator!r}, "
+                      f"可用: {list(self._SAFE_OPS)}")
+                return False
 
-            # 注册到因子注册表
+            if not (1 <= period <= 252):
+                print(f"[AIFactorMiner] period 超出范围 [1,252]: {period}")
+                return False
+
+            # Build a safe compute function from whitelisted ops
+            safe_fn = self._SAFE_OPS[operator]
+
+            def make_compute(op_fn, p):
+                def compute(data):
+                    return op_fn(data, p)
+                return compute
+
             if name not in FACTOR_REGISTRY:
                 FACTOR_REGISTRY[name] = Factor(
                     name=name,
                     category=category,
                     description=description,
-                    compute=calc_fn,
+                    compute=make_compute(safe_fn, period),
                 )
+                print(f"[AIFactorMiner] 安全注册因子: {name} "
+                      f"(op={operator}, period={period})")
                 return True
             return False
         except Exception as e:
