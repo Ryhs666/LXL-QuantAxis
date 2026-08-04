@@ -520,6 +520,39 @@ class BatchRunner:
                 generate_all()
                 if verbose:
                     print(f"  🖥️ 仪表盘已刷新: {DASHBOARD_DIR}/")
+
+            # === 自动生成复现清单 (v2.0) ===
+            if completed > 0:
+                try:
+                    from src.journal.manifest import manifest_from_batch_run
+
+                    symbols_list = [s for s, _ in self.symbols]
+                    strategies_list = [s for s, _ in self.strategies]
+
+                    # 计算最高夏普
+                    top_sharpe = 0.0
+                    if not df.empty and "夏普比率" in df.columns:
+                        sharpe_vals = pd.to_numeric(df["夏普比率"], errors="coerce")
+                        top_sharpe = float(sharpe_vals.max()) if not sharpe_vals.isna().all() else 0.0
+
+                    manifest_path = manifest_from_batch_run(
+                        symbols=symbols_list,
+                        strategies=strategies_list,
+                        start_date=self.start_date,
+                        end_date=self.end_date,
+                        result_count=completed,
+                        top_sharpe=top_sharpe,
+                        extra={
+                            "skipped": skipped,
+                            "errors": errors,
+                            "run_id_prefix": datetime.now().strftime("%Y%m%d_%H%M"),
+                        },
+                    )
+                    if verbose:
+                        print(f"  📋 复现清单已保存: {manifest_path}")
+                except Exception as e:
+                    if verbose:
+                        print(f"  ⚠️ 复现清单生成失败: {e}")
             except Exception as e:
                 if verbose:
                     print(f"  ⚠️ 仪表盘生成失败: {e}")
