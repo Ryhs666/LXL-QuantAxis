@@ -49,10 +49,33 @@ def fetch_tencent_batch(symbols: list) -> dict:
     try:
         resp = requests.get(url, timeout=5,
                            headers={"User-Agent": "Mozilla/5.0"})
+        # ── HTTP 状态码检查 ──
+        if resp.status_code != 200:
+            status_labels = {
+                401: "未授权(鉴权失败/Token过期)",
+                403: "禁止访问(IP被封/无权限)",
+                404: "接口不存在(URL变更?)",
+                429: "请求过于频繁(触发限流)",
+                500: "服务端内部错误",
+                502: "网关错误",
+                503: "服务不可用(维护中)",
+            }
+            label = status_labels.get(resp.status_code, f"未知HTTP错误")
+            logger.warning(
+                f"腾讯行情 HTTP {resp.status_code} ({label}): "
+                f"symbols={len(symbols)} url={url[:80]}..."
+            )
+            return {}
         resp.encoding = "gbk"
         text = resp.text
+    except requests.exceptions.Timeout:
+        logger.warning(f"腾讯行情请求超时 (5s): {len(symbols)} 只股票")
+        return {}
+    except requests.exceptions.ConnectionError as e:
+        logger.warning(f"腾讯行情连接失败: {type(e).__name__}: {e}")
+        return {}
     except Exception as e:
-        logger.warning(f"腾讯行情请求失败: {e}")
+        logger.warning(f"腾讯行情请求异常 {type(e).__name__}: {e}")
         return {}
 
     results = {}
@@ -163,7 +186,11 @@ class RealtimeCollector:
                         self.callback(data)
                 else:
                     self._fail_count += 1
-                    logger.warning(f"采集失败 (#{self._fail_count})，下次重试")
+                    retry_after = self.poll_interval
+                    logger.warning(
+                        f"采集失败 (#{self._fail_count}/5), "
+                        f"空数据返回, {retry_after}s后重试"
+                    )
                     if self._fail_count > 5:
                         # 超过5次失败，降级：用上次数据保持价格微调
                         self._emit_degraded()
@@ -173,8 +200,13 @@ class RealtimeCollector:
 
             except Exception as e:
                 self._fail_count += 1
-                logger.error(f"采集异常: {e}")
-                time.sleep(config.get("realtime_retry_interval", 10))
+                retry_after = config.get("realtime_retry_interval", 10)
+                logger.error(
+                    f"采集异常 (#{self._fail_count}): "
+                    f"{type(e).__name__}: {e}, "
+                    f"重连等待 {retry_after}s"
+                )
+                time.sleep(retry_after)
 
     def _emit_degraded(self):
         """降级模式：基于上次数据微调价格，保持前端不卡死"""

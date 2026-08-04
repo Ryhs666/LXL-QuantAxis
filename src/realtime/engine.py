@@ -209,8 +209,12 @@ class StrategyEngine:
                         "reason": reason,
                         "timestamp": datetime.now().strftime("%H:%M:%S"),
                     })
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        f"SocketIO emit strategy_signal 失败: "
+                        f"{type(e).__name__}: {e} "
+                        f"(uid={uid} symbol={symbol} action={action})"
+                    )
 
             self._stats["signals"] += 1
 

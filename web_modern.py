@@ -23,13 +23,96 @@ app = Flask(__name__)
 # Flask-SocketIO 实时行情推送 (v5.5)
 # ═══════════════════════════════════════════════════════════
 try:
-    from flask_socketio import SocketIO
-    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+    from flask_socketio import SocketIO, emit as sio_emit
+    socketio = SocketIO(
+        app,
+        cors_allowed_origins="*",
+        async_mode='threading',    # Windows 兼容: threading 替代 eventlet
+        ping_interval=25,          # 心跳间隔 25s (默认25s)
+        ping_timeout=120,          # 心跳超时 120s (默认60s, 弱网兜底)
+        max_http_buffer_size=1e6,  # 1MB 消息缓冲区
+    )
     _SOCKETIO_AVAILABLE = True
 except ImportError:
     socketio = None
     _SOCKETIO_AVAILABLE = False
     print("[WARN] flask-socketio 未安装，实时推送不可用")
+
+
+# ═══════════════════════════════════════════════════════════
+# SocketIO 连接生命周期事件 (错误码捕获 + 详细日志)
+# ═══════════════════════════════════════════════════════════
+
+if socketio:
+    @socketio.on('connect')
+    def on_connect():
+        """客户端连接成功"""
+        sid = getattr(request, 'sid', '?')
+        origin = request.headers.get('Origin', '?') if hasattr(request, 'headers') else '?'
+        user_agent = request.headers.get('User-Agent', '?')[:80] if hasattr(request, 'headers') else '?'
+        print(f"[SocketIO] CONNECT sid={sid} origin={origin} ua={user_agent}")
+
+
+    @socketio.on('disconnect')
+    def on_disconnect():
+        """客户端断开连接 — 捕获服务端返回的关闭原因码"""
+        sid = getattr(request, 'sid', '?')
+        reason = request.args.get('reason', '') if hasattr(request, 'args') else ''
+        print(f"[SocketIO] DISCONNECT sid={sid} reason={reason}")
+
+
+    @socketio.on_error_default
+    def on_error(e):
+        """
+        全局错误处理器 — 捕获 WebSocket 错误码并打印详细日志
+
+        WebSocket 标准关闭码:
+          1000: 正常关闭
+          1001: 端点离开 (浏览器关闭/导航)
+          1006: 异常关闭 (网络断开, 未收到close frame)
+          1008: 策略违规 (Policy Violation — 鉴权失败/无权限)
+          1009: 消息过大
+          1011: 服务端内部错误
+          1012: 服务重启
+          4001-4999: 应用自定义 (可用于鉴权失败等)
+        """
+        sid = getattr(request, 'sid', '?') if hasattr(request, 'sid') else '?'
+
+        # 解析错误详情
+        err_msg = str(e)
+        err_type = type(e).__name__
+
+        # 检测 WebSocket 关闭码
+        close_code = None
+        code_label = ""
+        if hasattr(e, 'code'):
+            close_code = e.code
+        elif '1008' in err_msg:
+            close_code = 1008
+        elif '1006' in err_msg:
+            close_code = 1006
+        elif '401' in err_msg:
+            close_code = 401
+
+        # 错误码 → 人类可读
+        CODE_MAP = {
+            1000: "正常关闭",
+            1001: "端点离开(浏览器关闭/导航)",
+            1006: "异常关闭(网络断开/未收到close帧)",
+            1008: "策略违规(鉴权失败/无权限)",
+            1009: "消息过大",
+            1011: "服务端内部错误",
+            1012: "服务重启",
+            401: "HTTP 401 未授权(鉴权失败)",
+        }
+        code_label = CODE_MAP.get(close_code, f"未知码({close_code})" if close_code else "无错误码")
+
+        print(f"[SocketIO] ERROR sid={sid} "
+              f"type={err_type} "
+              f"code={close_code} "
+              f"reason={code_label} "
+              f"detail={err_msg[:200]}")
+
 
 # 实时行情缓存（由 RealtimeCollector 填充）
 REALTIME_CACHE = {}
@@ -69,8 +152,8 @@ def _on_realtime_data(data: dict):
                     "change_pct": tick.get("change_pct", 0),
                     "timestamp": tick.get("timestamp", ""),
                 })
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[SocketIO] price_update emit 失败: {type(e).__name__}: {e}")
 
 
 # 启动策略信号引擎
@@ -125,15 +208,18 @@ def _on_kline_close(symbol: str, period: str, bar: dict):
                 signals.append(("布林上轨", "SELL", f"触及上轨{ma20+2*std:.2f}"))
 
     for sig_name, action, reason in signals:
-        socketio.emit('strategy_signal', {
-            "symbol": symbol,
-            "timestamp": bar.get("time", ""),
-            "strategy_name": sig_name,
-            "signal": action,
-            "price": bar["close"],
-            "reason": reason,
-            "period": period,
-        })
+        try:
+            socketio.emit('strategy_signal', {
+                "symbol": symbol,
+                "timestamp": bar.get("time", ""),
+                "strategy_name": sig_name,
+                "signal": action,
+                "price": bar["close"],
+                "reason": reason,
+                "period": period,
+            })
+        except Exception as e:
+            print(f"[SocketIO] strategy_signal emit 失败: {type(e).__name__}: {e}")
 
 try:
     from src.realtime.kline import KLineAggregator
@@ -151,12 +237,15 @@ def _on_tick_with_signals(data: dict):
         triggered = check_alerts(sym, price)
         for a in triggered:
             if socketio:
-                socketio.emit('alert_triggered', {
-                    "symbol": sym, "price": price,
-                    "direction": a["direction"],
-                    "target": a["price"],
-                    "user_id": a["user_id"],
-                })
+                try:
+                    socketio.emit('alert_triggered', {
+                        "symbol": sym, "price": price,
+                        "direction": a["direction"],
+                        "target": a["price"],
+                        "user_id": a["user_id"],
+                    })
+                except Exception as e:
+                    print(f"[SocketIO] alert_triggered emit 失败: {type(e).__name__}: {e}")
     """行情回调：更新缓存 + 广播 + K线聚合 + 策略引擎评估"""
     _on_realtime_data(data)
     # K线聚合
@@ -164,8 +253,8 @@ def _on_tick_with_signals(data: dict):
         for sym, tick in data.items():
             try:
                 _kline_agg.on_tick(sym, tick["price"], tick.get("volume", 0))
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[KLine] on_tick 异常 {sym}: {type(e).__name__}: {e}")
         # 首次聚合后打印
         if not hasattr(_on_tick_with_signals, '_dbg'):
             _on_tick_with_signals._dbg = True
@@ -204,7 +293,10 @@ except Exception as e:
                 d["change_pct"] = round((d["price"]/d["open"]-1)*100, 2) if d["open"] > 0 else 0
                 d["timestamp"] = datetime.now().strftime("%H:%M:%S")
                 if socketio:
-                    socketio.emit('price_update', {k: v for k, v in d.items()})
+                    try:
+                        socketio.emit('price_update', {k: v for k, v in d.items()})
+                    except Exception as e:
+                        print(f"[SocketIO] simulator price_update emit 失败: {type(e).__name__}: {e}")
             time.sleep(1)
     threading.Thread(target=_sim_fallback, daemon=True).start()
 

@@ -60,7 +60,7 @@ class KLineAggregator:
         # 首次调用打印
         if not hasattr(self, '_debug_printed'):
             self._debug_printed = True
-            print(f"[KLine] 聚合器开始接收tick: {symbol} ¥{price}")
+            print(f"[KLine] 聚合器开始接收tick: {symbol} price={price}")
 
         # 只聚合交易时段（9:30-15:00 简化，实际取9:00-16:00范围）
         # 非交易时段也聚合，方便测试
@@ -110,8 +110,9 @@ class KLineAggregator:
                     if self.signal_callback:
                         try:
                             self.signal_callback(symbol, period, bar)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            print(f"[KLine] signal_callback 异常 ({symbol} {period}): "
+                                  f"{type(e).__name__}: {e}")
 
                 # 新建
                 self._current[symbol][period] = {
@@ -135,7 +136,6 @@ class KLineAggregator:
         if not self.socketio:
             print(f"[KLine] WARN: socketio未设置，无法推送 {symbol} {period}")
             return
-        print(f"[KLine] 推送 {symbol} {period} {len(bars)}根K线 最新¥{bars[-1]['close']}")
 
         # 取最近60根（减少传输量）
         recent = bars[-60:] if len(bars) > 60 else bars
@@ -158,8 +158,9 @@ class KLineAggregator:
                 "latest_price": latest_price,
                 "change_pct": change_pct,
             })
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[KLine] kline_update emit 失败 ({symbol} {period}): "
+                  f"{type(e).__name__}: {e}")
 
     def get_bars(self, symbol: str, period: str = "5min") -> list:
         """获取某只股票的K线数据（含未闭合）"""
