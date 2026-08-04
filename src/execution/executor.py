@@ -53,8 +53,22 @@ class OrderExecutor:
     @property
     def broker(self):
         if self._broker is None:
-            from src.execution.paper_broker import PaperBroker
-            self._broker = PaperBroker()
+            import os
+            broker_type = os.environ.get("QUANT_BROKER", "paper")
+            if broker_type == "qmt":
+                broker_cfg = {
+                    "account_id": os.environ.get("QMT_ACCOUNT", ""),
+                    "qmt_path": os.environ.get("QMT_PATH", ""),
+                    "session_id": int(os.environ.get("QMT_SESSION", "1")),
+                }
+            else:
+                broker_cfg = {
+                    "account_id": "paper_main",
+                    "initial_cash": 1_000_000,
+                }
+            from src.execution.brokers import BrokerFactory
+            self._broker = BrokerFactory.create(broker_type, broker_cfg)
+            self._broker.connect()
         return self._broker
 
     @property

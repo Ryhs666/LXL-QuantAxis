@@ -326,7 +326,8 @@ class BacktestEngine:
                  use_impact_cost: bool = True,
                  use_limit_order: bool = False,
                  impact_coefficient: float = 0.1,
-                 token_validator=None):  # 陷阱4: Token过期检查回调
+                 token_validator=None,      # 陷阱4: Token过期检查回调
+                 live_broker=None):         # v2.0: 实盘券商适配器
         self.initial_capital = initial_capital
         self.commission_rate = commission_rate
         self.slippage = slippage
@@ -352,6 +353,7 @@ class BacktestEngine:
             from src.risk.manager import RiskManager
             self.risk = RiskManager(initial_capital=initial_capital)
         self.token_validator = token_validator  # 陷阱4
+        self.live_broker = live_broker          # v2.0: 实盘券商 (None=回测模式)
         self._risk_signals = []  # 风控产生的信号记录
         self._fill_stats = {"attempted": 0, "filled": 0, "cancelled": 0}
 
@@ -374,6 +376,14 @@ class BacktestEngine:
             signal_lag_periods: 信号延迟周期 —
                 0 (默认): 不额外延迟 (引擎 _run_next_bar 已处理 T+1)
                 1:       对外部信号强制延迟 1 期 (双保险模式)
+
+        --live 模式 (v2.0):
+            当 self.live_broker 不为 None 时, 引擎将信号提交到实盘/模拟盘券商,
+            而非内部 Portfolio 模拟。启用方式:
+              from src.execution.brokers import BrokerFactory
+              broker = BrokerFactory.create("paper", {"initial_cash": 100000})
+              engine = BacktestEngine(live_broker=broker)
+              engine.run(strategy, data)  # → 信号提交到 broker
 
         返回:
             dict: {

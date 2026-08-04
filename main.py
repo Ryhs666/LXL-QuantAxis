@@ -1702,6 +1702,22 @@ if __name__ == "__main__":
             webbrowser.open(f"file:///{path.replace(chr(92), '/')}")
         except Exception as e:
             print(f"\n  ❌ 生成失败: {e}")
+    elif len(sys.argv) > 1 and sys.argv[1] == "--discover":
+        symbol = sys.argv[2] if len(sys.argv) > 2 else "600519"
+        gens = 30
+        pop = 80
+        for i, arg in enumerate(sys.argv):
+            if arg == "--gens" and i + 1 < len(sys.argv):
+                gens = int(sys.argv[i + 1])
+            if arg == "--pop" and i + 1 < len(sys.argv):
+                pop = int(sys.argv[i + 1])
+        print(f"\n  [Miner] 因子发现: {symbol} ({gens}代, {pop}种群)")
+        try:
+            from src.ai.factor_discovery import run_discover_cli
+            run_discover_cli(symbol, generations=gens, population=pop)
+        except Exception as e:
+            print(f"\n  FAIL: {e}")
+
     elif len(sys.argv) > 1 and sys.argv[1] == "--tune":
         strategy = sys.argv[2] if len(sys.argv) > 2 else "ma_cross"
         symbol = "601398"
