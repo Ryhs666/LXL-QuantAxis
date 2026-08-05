@@ -1,6 +1,7 @@
 # LXL·QuantAxis
 
-> AI-Native Quantitative Investment Research Platform
+> AI-Native Quantitative Investment Research Platform  
+> **Version**: 2.0.0 | **Status**: Active Development | **License**: MIT
 
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](.)
