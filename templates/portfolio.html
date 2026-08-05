@@ -2,27 +2,36 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Portfolio — LXL·QuantAxis</title>
+<title>Portfolio Analytics — LXL·QuantAxis</title>
 <link rel="stylesheet" href="/static/css/terminal.css">
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <style>
   .port-container{max-width:1200px;margin:0 auto;padding:24px}
   .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
-  .kpi-card{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:18px 20px}
-  .kpi-card .kpi-label{font:600 10px/14px 'Inter',sans-serif;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
-  .kpi-card .kpi-value{font:600 28px/36px 'JetBrains Mono',monospace;margin-top:6px}
-  .kpi-card .kpi-delta{font:400 11px/16px 'Inter',sans-serif;margin-top:2px}
+  .kpi-card{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:16px 18px}
+  .kpi-label{font:600 10px/14px 'Inter',sans-serif;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
+  .kpi-value{font:600 28px/36px 'JetBrains Mono',monospace;margin-top:4px}
+  .kpi-delta{font:400 11px/14px 'Inter',sans-serif;margin-top:1px}
   .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
   .chart-panel{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:16px}
-  .chart-panel .chart-title{font:600 12px/18px 'Inter',sans-serif;color:var(--text-primary);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-subtle)}
+  .chart-title{font:600 12px/18px 'Inter',sans-serif;color:var(--text-primary);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-subtle)}
   .chart-box{width:100%;height:280px}
-  .table-panel{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:16px;margin-bottom:20px}
-  .risk-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px}
-  .risk-card{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:16px}
-  .risk-card .risk-title{font:600 12px/18px 'Inter',sans-serif;color:var(--text-primary);margin-bottom:10px}
-  .risk-bar{height:6px;background:var(--border-subtle);border-radius:3px;margin:8px 0}
-  .risk-fill{height:6px;border-radius:3px}
-  .risk-low{background:var(--accent-success)}.risk-moderate{background:var(--accent-warning)}.risk-high{background:var(--accent-danger)}
+  .risk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+  .risk-card{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:14px 16px}
+  .risk-label{font:600 10px/12px 'Inter',sans-serif;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em}
+  .risk-value{font:600 22px/30px 'JetBrains Mono',monospace;margin-top:4px}
+  .risk-badge{display:inline-block;padding:2px 10px;font:600 10px/16px 'Inter',sans-serif;text-transform:uppercase;letter-spacing:.03em}
+  .risk-medium{color:var(--accent-warning);border:1px solid rgba(245,158,11,.4)}
+  .factor-row{display:flex;align-items:center;gap:10px;margin:10px 0}
+  .factor-label{width:90px;font:400 12px/16px 'Inter',sans-serif;color:var(--text-secondary);text-align:right}
+  .factor-track{flex:1;height:8px;background:var(--border-subtle);border-radius:4px}
+  .factor-fill{height:8px;border-radius:4px}
+  .factor-score{width:36px;font:500 12px/16px 'JetBrains Mono',monospace;color:var(--accent-finance);text-align:right}
+  .attribution-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle)}
+  .attr-name{font:400 13px/18px 'Inter',sans-serif;color:var(--text-secondary)}
+  .attr-bar{flex:1;height:6px;background:var(--border-subtle);border-radius:3px;margin:0 14px}
+  .attr-fill{height:6px;border-radius:3px}
+  .attr-val{font:500 13px/18px 'JetBrains Mono',monospace;color:var(--text-primary);width:55px;text-align:right}
   @media(max-width:900px){.kpi-grid,.chart-grid,.risk-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -34,109 +43,117 @@
   <a href="/research" class="terminal-nav-item">Research</a>
   <a href="/pipeline" class="terminal-nav-item">Pipeline</a>
   <a href="/portfolio" class="terminal-nav-item active">Portfolio</a>
-  <div class="terminal-nav-right"><div class="terminal-nav-status"><span class="terminal-nav-dot"></span> Live</div><span>v2.0.0</span></div>
+  <div class="terminal-nav-right"><div class="terminal-nav-status"><span class="terminal-nav-dot"></span>Live</div><span>v2.0.0</span></div>
 </nav>
 
 <div class="port-container">
-  <div class="section-label">Portfolio Intelligence</div>
-  <p style="color:var(--text-secondary);font:400 13px/20px 'Inter',sans-serif;margin:8px 0 18px">Multi-strategy portfolio with factor-aware allocation. Model: Risk Parity. Rebalanced quarterly.</p>
+  <!-- Header -->
+  <div class="section-label">Portfolio Analytics</div>
+  <div style="display:flex;align-items:baseline;gap:12px;margin:6px 0 20px">
+    <span style="font:600 18px/26px 'Inter',sans-serif;color:var(--text-primary)">LXL AI Growth Portfolio</span>
+    <span style="font:400 12px/18px 'JetBrains Mono',monospace;color:var(--text-muted)">Risk Parity · Quarterly Rebalance · 4 Constituents</span>
+  </div>
 
-  <!-- KPI Row -->
+  <!-- KPI Cards -->
   <div class="kpi-grid">
     <div class="kpi-card">
-      <div class="kpi-label">Annual Return</div>
-      <div class="kpi-value" style="color:var(--accent-finance)">+12.4%</div>
-      <div class="kpi-delta metric-positive">↑ 2.1% vs benchmark</div>
+      <div class="kpi-label">Total Return</div>
+      <div class="kpi-value metric-positive">+18.6%</div>
+      <div class="kpi-delta" style="color:var(--text-secondary)">Since 2024-01-01</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Sharpe Ratio</div>
-      <div class="kpi-value" style="color:var(--text-primary)">1.25</div>
-      <div class="kpi-delta" style="color:var(--text-secondary)">Risk-free: 2.0%</div>
+      <div class="kpi-value" style="color:var(--accent-finance)">1.35</div>
+      <div class="kpi-delta" style="color:var(--text-secondary)">Risk-free: 2.0% ann.</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Max Drawdown</div>
-      <div class="kpi-value metric-negative">-9.8%</div>
-      <div class="kpi-delta" style="color:var(--text-secondary)">Recovery: 45 days</div>
+      <div class="kpi-label">Maximum Drawdown</div>
+      <div class="kpi-value metric-negative">-12.4%</div>
+      <div class="kpi-delta" style="color:var(--text-secondary)">Recovery: 38 days</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Volatility (Ann.)</div>
-      <div class="kpi-value" style="color:var(--text-primary)">14.2%</div>
+      <div class="kpi-value" style="color:var(--text-primary)">18.2%</div>
       <div class="kpi-delta" style="color:var(--text-secondary)">252-day sample</div>
     </div>
   </div>
 
   <!-- Charts Row -->
   <div class="chart-grid">
-    <div class="chart-panel"><div class="chart-title">Asset Allocation</div><div class="chart-box" id="chartAllocation"></div></div>
-    <div class="chart-panel"><div class="chart-title">Factor Exposure</div><div class="chart-box" id="chartFactor"></div></div>
+    <div class="chart-panel"><div class="chart-title">Asset Allocation</div><div class="chart-box" id="chartAlloc"></div></div>
+    <div class="chart-panel"><div class="chart-title">Performance Attribution</div><div class="chart-box" id="chartAttr"></div></div>
   </div>
 
-  <!-- Strategy Table -->
-  <div class="table-panel">
-    <div class="chart-title">Strategy Composition</div>
-    <table class="terminal-table" style="margin-top:10px">
-      <thead><tr><th>Strategy</th><th>Allocation</th><th>Sharpe</th><th>Ann.Return</th><th>Max DD</th><th>Win Rate</th><th>Status</th></tr></thead>
-      <tbody>
-        <tr><td>AI Infrastructure Growth</td><td class="cell-finance">40%</td><td>1.25</td><td class="cell-positive">+15.3%</td><td class="cell-negative">-9.8%</td><td>58.3%</td><td><span class="badge badge-done">Active</span></td></tr>
-        <tr><td>Consumer Value Recovery</td><td class="cell-finance">30%</td><td>0.82</td><td class="cell-positive">+8.1%</td><td class="cell-negative">-6.2%</td><td>62.0%</td><td><span class="badge badge-done">Active</span></td></tr>
-        <tr><td>Semiconductor Cycle</td><td class="cell-finance">20%</td><td>0.95</td><td class="cell-positive">+10.2%</td><td class="cell-negative">-8.5%</td><td>55.0%</td><td><span class="badge badge-done">Active</span></td></tr>
-        <tr><td>Macro Trend Hedge</td><td class="cell-finance">10%</td><td>0.65</td><td class="cell-positive">+5.4%</td><td class="cell-negative">-4.1%</td><td>52.0%</td><td><span class="badge badge-done">Active</span></td></tr>
-      </tbody>
-    </table>
+  <!-- Factor Exposure -->
+  <div class="chart-panel" style="margin-bottom:20px">
+    <div class="chart-title">Factor Exposure Analysis</div>
+    <div style="padding:10px 0">
+      <div class="factor-row"><span class="factor-label">Growth</span><div class="factor-track"><div class="factor-fill" style="width:90%;background:linear-gradient(90deg,#3B82F6,#60A5FA)"></div></div><span class="factor-score">90</span></div>
+      <div class="factor-row"><span class="factor-label">Momentum</span><div class="factor-track"><div class="factor-fill" style="width:75%;background:linear-gradient(90deg,#8B5CF6,#A78BFA)"></div></div><span class="factor-score">75</span></div>
+      <div class="factor-row"><span class="factor-label">Quality</span><div class="factor-track"><div class="factor-fill" style="width:82%;background:linear-gradient(90deg,#22C55E,#4ADE80)"></div></div><span class="factor-score">82</span></div>
+      <div class="factor-row"><span class="factor-label">Value</span><div class="factor-track"><div class="factor-fill" style="width:45%;background:linear-gradient(90deg,#C9A227,#E5C84D)"></div></div><span class="factor-score">45</span></div>
+    </div>
   </div>
 
-  <!-- Risk Analysis -->
+  <!-- Risk Dashboard -->
   <div class="risk-grid">
     <div class="risk-card">
-      <div class="risk-title">Market Risk</div>
-      <div style="display:flex;justify-content:space-between;font:400 11px monospace;color:var(--text-secondary);margin-bottom:4px"><span>Moderate</span><span>6.5/10</span></div>
-      <div class="risk-bar"><div class="risk-fill risk-moderate" style="width:65%"></div></div>
+      <div class="risk-label">Risk Level</div>
+      <div style="margin-top:6px"><span class="risk-badge risk-medium">MEDIUM</span></div>
     </div>
     <div class="risk-card">
-      <div class="risk-title">Factor Concentration</div>
-      <div style="display:flex;justify-content:space-between;font:400 11px monospace;color:var(--text-secondary);margin-bottom:4px"><span>Low</span><span>3.2/10</span></div>
-      <div class="risk-bar"><div class="risk-fill risk-low" style="width:32%"></div></div>
+      <div class="risk-label">Volatility</div>
+      <div class="risk-value" style="color:var(--text-primary)">18.2%</div>
     </div>
     <div class="risk-card">
-      <div class="risk-title">Correlation Risk</div>
-      <div style="display:flex;justify-content:space-between;font:400 11px monospace;color:var(--text-secondary);margin-bottom:4px"><span>Moderate</span><span>5.8/10</span></div>
-      <div class="risk-bar"><div class="risk-fill risk-moderate" style="width:58%"></div></div>
+      <div class="risk-label">Correlation</div>
+      <div class="risk-value" style="color:var(--text-primary)">0.42</div>
+    </div>
+    <div class="risk-card">
+      <div class="risk-label">Beta</div>
+      <div class="risk-value" style="color:var(--text-primary)">1.08</div>
+    </div>
+  </div>
+
+  <!-- Attribution Detail -->
+  <div class="chart-panel">
+    <div class="chart-title">Return Contribution by Constituent</div>
+    <div style="padding:6px 0">
+      <div class="attribution-row"><span class="attr-name">NVIDIA (NVDA)</span><div class="attr-bar"><div class="attr-fill" style="width:100%;background:var(--accent-tech)"></div></div><span class="attr-val metric-positive">+8.2%</span></div>
+      <div class="attribution-row"><span class="attr-name">TSMC (TSM)</span><div class="attr-bar"><div class="attr-fill" style="width:50%;background:var(--accent-tech)"></div></div><span class="attr-val metric-positive">+4.1%</span></div>
+      <div class="attribution-row"><span class="attr-name">Microsoft (MSFT)</span><div class="attr-bar"><div class="attr-fill" style="width:43%;background:var(--accent-tech)"></div></div><span class="attr-val metric-positive">+3.5%</span></div>
+      <div class="attribution-row"><span class="attr-name">Cash</span><div class="attr-bar"><div class="attr-fill" style="width:34%;background:var(--border-active)"></div></div><span class="attr-val metric-positive">+2.8%</span></div>
     </div>
   </div>
 </div>
 
 <script>
-// Asset Allocation — Pie Chart
 (function(){
-  var c=echarts.init(document.getElementById('chartAllocation'));
+  var c=echarts.init(document.getElementById('chartAlloc'));
   c.setOption({
     tooltip:{trigger:'item',formatter:'{b}: {c}%'},
-    series:[{type:'pie',radius:['50%','78%'],center:['50%','55%'],avoidLabelOverlap:false,
-      label:{show:true,position:'outside',color:'#94A3B8',fontSize:11,fontFamily:'Inter',formatter:'{b}\n{d}%'},
-      emphasis:{label:{show:true,fontSize:16,fontWeight:'bold'}},
-      data:[{value:40,name:'AI Infrastructure',itemStyle:{color:'#3B82F6'}},{value:30,name:'Consumer Value',itemStyle:{color:'#22C55E'}},{value:20,name:'Semiconductor',itemStyle:{color:'#C9A227'}},{value:10,name:'Macro Hedge',itemStyle:{color:'#8B5CF6'}}]
+    series:[{type:'pie',radius:['48%','76%'],center:['50%','55%'],
+      label:{color:'#94A3B8',fontSize:11,fontFamily:'Inter',formatter:'{b}\n{d}%'},
+      data:[{value:35,name:'AI Semiconductor',itemStyle:{color:'#3B82F6'}},{value:25,name:'Cloud Infrastructure',itemStyle:{color:'#22C55E'}},{value:20,name:'Software',itemStyle:{color:'#C9A227'}},{value:20,name:'Cash',itemStyle:{color:'#475569'}}]
     }]
   });
 })();
-
-// Factor Exposure — Horizontal Bar
 (function(){
-  var c=echarts.init(document.getElementById('chartFactor'));
+  var c=echarts.init(document.getElementById('chartAttr'));
   c.setOption({
     tooltip:{trigger:'axis'},
     grid:{left:100,right:30,top:10,bottom:20},
-    xAxis:{type:'value',max:100,axisLabel:{color:'#94A3B8',fontSize:10},splitLine:{lineStyle:{color:'#1A2A44'}}},
-    yAxis:{type:'category',data:['Momentum','Trend','Volume','Volatility','Quality','Value'],axisLabel:{color:'#94A3B8',fontSize:11,fontFamily:'Inter'}},
-    series:[{type:'bar',data:[45,35,20,18,15,12],
+    xAxis:{type:'value',axisLabel:{color:'#94A3B8',fontSize:10},splitLine:{lineStyle:{color:'#1A2A44'}}},
+    yAxis:{type:'category',data:['NVIDIA','TSMC','Microsoft','Cash'],axisLabel:{color:'#94A3B8',fontSize:11,fontFamily:'Inter'}},
+    series:[{type:'bar',data:[8.2,4.1,3.5,2.8],barWidth:16,
       itemStyle:{color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#3B82F6'},{offset:1,color:'#1D4ED8'}])},
-      barWidth:16,label:{show:true,position:'right',color:'#94A3B8',fontSize:10,formatter:'{c}%'}
+      label:{show:true,position:'right',color:'#94A3B8',fontSize:10,formatter:'+{c}%'}
     }]
   });
 })();
-
 window.addEventListener('resize',function(){
-  echarts.getInstanceByDom(document.getElementById('chartAllocation'))?.resize();
-  echarts.getInstanceByDom(document.getElementById('chartFactor'))?.resize();
+  echarts.getInstanceByDom(document.getElementById('chartAlloc'))?.resize();
+  echarts.getInstanceByDom(document.getElementById('chartAttr'))?.resize();
 });
 </script>
 </body>
