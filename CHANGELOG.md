@@ -1,6 +1,15 @@
 # Changelog
 
-## v2.0.0-stable (2026-08-05) — Release Candidate
+## v2.0.0-stable (2026-08-05)
+
+### Showcase Polish
+- Optimized README with visual pipeline diagram, demo output, badges
+- GitHub repo metadata: description + 8 topics
+- Research cases library with 3 detailed walkthroughs
+- Roadmap section (v2.1 → v3.0)
+- All documentation links verified
+
+## v2.0.0-rc1 (2026-08-05) — Release Candidate
 
 ### Release Notes
 - All 30+ commits from `fix/portfolio-metrics-v2` merged

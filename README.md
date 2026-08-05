@@ -139,6 +139,15 @@ Three detailed walkthroughs showing the complete workflow:
 
 Python 3.12 · Flask · Pandas/NumPy · Plotly · SQLite · JWT/bcrypt · akshare/yfinance · SciPy
 
+## Roadmap
+
+| Version | Focus |
+|---------|-------|
+| v2.0.0 (current) | AI pipeline, safe DSL, research notebook, portfolio intelligence |
+| v2.1 | Real fundamental data (financial statements, macro), live paper trading |
+| v2.2 | Multi-step AI agent with iterative refinement, Docker support |
+| v3.0 | Collaborative research, multi-user notebooks, cloud deployment |
+
 ## Documentation
 
 | Document | Content |
