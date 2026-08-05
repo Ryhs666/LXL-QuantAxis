@@ -221,6 +221,19 @@ Every investment thesis is: (1) recorded as a research note, (2) mapped to measu
 
 ---
 
+## 10. LXL Ecosystem
+
+LXL·QuantAxis is part of the LXL Investment Research Ecosystem:
+
+| Component | Role |
+|-----------|------|
+| **LXL Equity Research Lab** | Fundamental analysis: company research, industry mapping, financial modeling, valuation |
+| **LXL·QuantAxis V2.0** | Quantitative intelligence: AI thesis extraction, factor mapping, strategy validation, automated reporting |
+
+Together they form a technology-driven research platform where **human analysts generate investment ideas** and **AI validates, structures, and documents them**.
+
+See [LXL Ecosystem Overview](docs/lxl_ecosystem/LXL_ECOSYSTEM_OVERVIEW.md) for details.
+
 ## License
 
 MIT
