@@ -3179,6 +3179,10 @@ def api_game_rank():
 # v2.0 Research Center
 # ═══════════════════════════════════════════════════════════
 
+@app.route('/portfolio')
+def portfolio_page():
+    return render_template('portfolio.html')
+
 @app.route('/pipeline')
 def pipeline_page():
     return render_template('pipeline.html')

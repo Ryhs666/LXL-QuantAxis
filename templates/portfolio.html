@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Portfolio — LXL·QuantAxis</title>
+<link rel="stylesheet" href="/static/css/terminal.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  .port-container{max-width:1200px;margin:0 auto;padding:24px}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+  .kpi-card{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:18px 20px}
+  .kpi-card .kpi-label{font:600 10px/14px 'Inter',sans-serif;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
+  .kpi-card .kpi-value{font:600 28px/36px 'JetBrains Mono',monospace;margin-top:6px}
+  .kpi-card .kpi-delta{font:400 11px/16px 'Inter',sans-serif;margin-top:2px}
+  .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+  .chart-panel{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:16px}
+  .chart-panel .chart-title{font:600 12px/18px 'Inter',sans-serif;color:var(--text-primary);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-subtle)}
+  .chart-box{width:100%;height:280px}
+  .table-panel{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:16px;margin-bottom:20px}
+  .risk-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px}
+  .risk-card{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:16px}
+  .risk-card .risk-title{font:600 12px/18px 'Inter',sans-serif;color:var(--text-primary);margin-bottom:10px}
+  .risk-bar{height:6px;background:var(--border-subtle);border-radius:3px;margin:8px 0}
+  .risk-fill{height:6px;border-radius:3px}
+  .risk-low{background:var(--accent-success)}.risk-moderate{background:var(--accent-warning)}.risk-high{background:var(--accent-danger)}
+  @media(max-width:900px){.kpi-grid,.chart-grid,.risk-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<nav class="terminal-nav">
+  <a href="/" class="terminal-nav-brand">LXL·QuantAxis</a>
+  <a href="/terminal" class="terminal-nav-item">Terminal</a>
+  <a href="/research" class="terminal-nav-item">Research</a>
+  <a href="/pipeline" class="terminal-nav-item">Pipeline</a>
+  <a href="/portfolio" class="terminal-nav-item active">Portfolio</a>
+  <div class="terminal-nav-right"><div class="terminal-nav-status"><span class="terminal-nav-dot"></span> Live</div><span>v2.0.0</span></div>
+</nav>
+
+<div class="port-container">
+  <div class="section-label">Portfolio Intelligence</div>
+  <p style="color:var(--text-secondary);font:400 13px/20px 'Inter',sans-serif;margin:8px 0 18px">Multi-strategy portfolio with factor-aware allocation. Model: Risk Parity. Rebalanced quarterly.</p>
+
+  <!-- KPI Row -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Annual Return</div>
+      <div class="kpi-value" style="color:var(--accent-finance)">+12.4%</div>
+      <div class="kpi-delta metric-positive">↑ 2.1% vs benchmark</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Sharpe Ratio</div>
+      <div class="kpi-value" style="color:var(--text-primary)">1.25</div>
+      <div class="kpi-delta" style="color:var(--text-secondary)">Risk-free: 2.0%</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Max Drawdown</div>
+      <div class="kpi-value metric-negative">-9.8%</div>
+      <div class="kpi-delta" style="color:var(--text-secondary)">Recovery: 45 days</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Volatility (Ann.)</div>
+      <div class="kpi-value" style="color:var(--text-primary)">14.2%</div>
+      <div class="kpi-delta" style="color:var(--text-secondary)">252-day sample</div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="chart-grid">
+    <div class="chart-panel"><div class="chart-title">Asset Allocation</div><div class="chart-box" id="chartAllocation"></div></div>
+    <div class="chart-panel"><div class="chart-title">Factor Exposure</div><div class="chart-box" id="chartFactor"></div></div>
+  </div>
+
+  <!-- Strategy Table -->
+  <div class="table-panel">
+    <div class="chart-title">Strategy Composition</div>
+    <table class="terminal-table" style="margin-top:10px">
+      <thead><tr><th>Strategy</th><th>Allocation</th><th>Sharpe</th><th>Ann.Return</th><th>Max DD</th><th>Win Rate</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>AI Infrastructure Growth</td><td class="cell-finance">40%</td><td>1.25</td><td class="cell-positive">+15.3%</td><td class="cell-negative">-9.8%</td><td>58.3%</td><td><span class="badge badge-done">Active</span></td></tr>
+        <tr><td>Consumer Value Recovery</td><td class="cell-finance">30%</td><td>0.82</td><td class="cell-positive">+8.1%</td><td class="cell-negative">-6.2%</td><td>62.0%</td><td><span class="badge badge-done">Active</span></td></tr>
+        <tr><td>Semiconductor Cycle</td><td class="cell-finance">20%</td><td>0.95</td><td class="cell-positive">+10.2%</td><td class="cell-negative">-8.5%</td><td>55.0%</td><td><span class="badge badge-done">Active</span></td></tr>
+        <tr><td>Macro Trend Hedge</td><td class="cell-finance">10%</td><td>0.65</td><td class="cell-positive">+5.4%</td><td class="cell-negative">-4.1%</td><td>52.0%</td><td><span class="badge badge-done">Active</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Risk Analysis -->
+  <div class="risk-grid">
+    <div class="risk-card">
+      <div class="risk-title">Market Risk</div>
+      <div style="display:flex;justify-content:space-between;font:400 11px monospace;color:var(--text-secondary);margin-bottom:4px"><span>Moderate</span><span>6.5/10</span></div>
+      <div class="risk-bar"><div class="risk-fill risk-moderate" style="width:65%"></div></div>
+    </div>
+    <div class="risk-card">
+      <div class="risk-title">Factor Concentration</div>
+      <div style="display:flex;justify-content:space-between;font:400 11px monospace;color:var(--text-secondary);margin-bottom:4px"><span>Low</span><span>3.2/10</span></div>
+      <div class="risk-bar"><div class="risk-fill risk-low" style="width:32%"></div></div>
+    </div>
+    <div class="risk-card">
+      <div class="risk-title">Correlation Risk</div>
+      <div style="display:flex;justify-content:space-between;font:400 11px monospace;color:var(--text-secondary);margin-bottom:4px"><span>Moderate</span><span>5.8/10</span></div>
+      <div class="risk-bar"><div class="risk-fill risk-moderate" style="width:58%"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Asset Allocation — Pie Chart
+(function(){
+  var c=echarts.init(document.getElementById('chartAllocation'));
+  c.setOption({
+    tooltip:{trigger:'item',formatter:'{b}: {c}%'},
+    series:[{type:'pie',radius:['50%','78%'],center:['50%','55%'],avoidLabelOverlap:false,
+      label:{show:true,position:'outside',color:'#94A3B8',fontSize:11,fontFamily:'Inter',formatter:'{b}\n{d}%'},
+      emphasis:{label:{show:true,fontSize:16,fontWeight:'bold'}},
+      data:[{value:40,name:'AI Infrastructure',itemStyle:{color:'#3B82F6'}},{value:30,name:'Consumer Value',itemStyle:{color:'#22C55E'}},{value:20,name:'Semiconductor',itemStyle:{color:'#C9A227'}},{value:10,name:'Macro Hedge',itemStyle:{color:'#8B5CF6'}}]
+    }]
+  });
+})();
+
+// Factor Exposure — Horizontal Bar
+(function(){
+  var c=echarts.init(document.getElementById('chartFactor'));
+  c.setOption({
+    tooltip:{trigger:'axis'},
+    grid:{left:100,right:30,top:10,bottom:20},
+    xAxis:{type:'value',max:100,axisLabel:{color:'#94A3B8',fontSize:10},splitLine:{lineStyle:{color:'#1A2A44'}}},
+    yAxis:{type:'category',data:['Momentum','Trend','Volume','Volatility','Quality','Value'],axisLabel:{color:'#94A3B8',fontSize:11,fontFamily:'Inter'}},
+    series:[{type:'bar',data:[45,35,20,18,15,12],
+      itemStyle:{color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#3B82F6'},{offset:1,color:'#1D4ED8'}])},
+      barWidth:16,label:{show:true,position:'right',color:'#94A3B8',fontSize:10,formatter:'{c}%'}
+    }]
+  });
+})();
+
+window.addEventListener('resize',function(){
+  echarts.getInstanceByDom(document.getElementById('chartAllocation'))?.resize();
+  echarts.getInstanceByDom(document.getElementById('chartFactor'))?.resize();
+});
+</script>
+</body>
+</html>
