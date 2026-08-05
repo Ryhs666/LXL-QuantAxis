@@ -179,7 +179,8 @@ class KLineAggregator:
 
     def load_history(self, symbol: str):
         """从本地CSV回填最近5天数据到各周期，让图表首次加载不空白"""
-        cache_file = f"D:/trading_data/cache/A股_{symbol}_daily.csv"
+        from src.lxl_quantaxis.core.config.loader import get_config
+        cache_file = f"{get_config().cache_dir}/A股_{symbol}_daily.csv"
         if not os.path.exists(cache_file):
             return
 

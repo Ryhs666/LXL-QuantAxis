@@ -121,7 +121,7 @@ class MarketRegimeDetector:
         self._switch_log.append(msg)
         # 写入日志文件
         try:
-            log_path = "D:/trading_data/logs/regime_switch.log"
+            log_path = os.environ.get("QUANT_DATA_DIR", os.environ.get("TRADING_DATA_DIR", os.path.expanduser("~/lxl_quantaxis_data"))) + "/logs/regime_switch.log"
             os.makedirs(os.path.dirname(log_path), exist_ok=True)
             with open(log_path, "a", encoding="utf-8") as f:
                 f.write(msg + "\n")

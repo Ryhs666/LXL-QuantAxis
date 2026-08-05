@@ -65,3 +65,4 @@ build/
 # Privacy - NEVER commit these
 8
 _inline_js.js
+reports/

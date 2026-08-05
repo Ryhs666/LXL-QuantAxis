@@ -13,7 +13,7 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, request, jsonify, render_template, redirect, g
+from flask import Flask, request, jsonify, render_template, render_template_string, redirect, g
 from datetime import datetime, timedelta
 from src.auth import (
     SECURITY_SETTINGS,
@@ -3173,6 +3173,145 @@ def api_game_rank():
     finally:
         conn.close()
 
+
+
+# ═══════════════════════════════════════════════════════════
+# v2.0 Research Center
+# ═══════════════════════════════════════════════════════════
+
+@app.route('/research')
+def research_center():
+    """AI Research Center page."""
+    return render_template_string(RESEARCH_CENTER_HTML)
+
+
+RESEARCH_CENTER_HTML = r"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Research Center — LXL QuantAxis</title>
+<style>
+:root{--bg:#060912;--card:#111827;--accent:#3b82f6;--green:#10b981;--red:#ef4444;--text:#f1f5f9;--muted:#94a3b8;--border:#1e293b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:12px}
+header h1{font-size:18px;color:var(--accent)}nav a{color:var(--muted);text-decoration:none;font-size:12px;padding:4px 10px;border-radius:4px}nav a:hover,nav a.active{background:var(--accent);color:#fff}
+main{max-width:1000px;margin:0 auto;padding:20px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+.card h3{color:var(--accent);margin-bottom:10px;font-size:14px}
+textarea,input[type=text]{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:10px;border-radius:6px;font-size:14px;font-family:inherit}
+textarea{height:100px;resize:vertical}
+.btn{background:var(--accent);color:#fff;border:none;padding:10px 24px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600}.btn:hover{opacity:.9}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--border)}td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.03)}
+.good{color:var(--green)}.bad{color:var(--red)}
+#output{margin-top:12px;white-space:pre-wrap;font-size:13px;line-height:1.6}
+.stage{padding:6px 10px;margin:4px 0;border-radius:4px;font-size:12px}
+.stage-ok{border-left:3px solid var(--green);background:rgba(16,185,129,.05)}
+.stage-err{border-left:3px solid var(--red);background:rgba(239,68,68,.05)}
+</style></head><body>
+<header><h1>LXL Research Center</h1>
+<nav><a href="/v2">Dashboard</a><a href="/classic">Classic</a><a href="/research" class="active">Research</a></nav>
+</header>
+<main>
+<div class="card">
+<h3>AI Research Pipeline</h3>
+<input type="text" id="symbol" placeholder="Stock code (e.g. 600519)" value="000001" style="margin-bottom:8px">
+<textarea id="idea" placeholder="Your investment idea...e.g. AI servers benefiting from cloud CAPEX growth. Risk: high valuation."></textarea>
+<div style="display:flex;gap:8px;margin-top:8px">
+<button class="btn" onclick="runPipeline()">Run Pipeline</button>
+<select id="llmMode" style="background:var(--bg);color:var(--text);border:1px solid var(--border);padding:8px;border-radius:6px">
+<option value="0">Rule-based (fast)</option><option value="1">LLM (if configured)</option>
+</select>
+</div>
+<div id="output"></div>
+</div>
+
+<div class="card">
+<h3>Research Notebook</h3>
+<div id="notes"></div>
+</div>
+</main>
+<script>
+async function api(url,opts){const r=await fetch(url,opts||{});return r.json()}
+async function runPipeline(){
+  const idea=document.getElementById('idea').value||'AI server supply chain growth';
+  const sym=document.getElementById('symbol').value||'000001';
+  const llm=document.getElementById('llmMode').value==='1';
+  const out=document.getElementById('output');
+  out.innerHTML='<div class="stage stage-ok">Running pipeline...</div>';
+
+  const stages=[
+    ['Thesis Extraction','/api/research/pipeline/thesis'],
+    ['Factor Mapping','/api/research/pipeline/factors'],
+    ['Strategy Building','/api/research/pipeline/strategy'],
+    ['Backtest','/api/research/pipeline/backtest'],
+    ['AI Analysis','/api/research/pipeline/analysis'],
+    ['Report','/api/research/pipeline/report'],
+  ];
+  let result={};
+  for(const[name,url] of stages){
+    out.innerHTML+=`<div class="stage">${name}...</div>`;
+    try{
+      const r=await api(url,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({idea, symbol:sym, use_llm:llm, prev:result})});
+      result=r;
+      const cls=r.ok?'stage-ok':'stage-err';
+      out.innerHTML+=`<div class="stage ${cls}">${name}: ${r.summary||r.error||'OK'}</div>`;
+    }catch(e){
+      out.innerHTML+=`<div class="stage stage-err">${name}: ${e}</div>`;
+    }
+  }
+  loadNotes();
+}
+async function loadNotes(){
+  try{
+    const r=await api('/api/research/notes');
+    if(r.notes&&r.notes.length){
+      let t='<table><tr><th>ID</th><th>Date</th><th>Symbol</th><th>Title</th></tr>';
+      r.notes.forEach(n=>{t+=`<tr><td>${n.id}</td><td>${n.date}</td><td>${n.symbol}</td><td>${n.title||''}</td></tr>`});
+      document.getElementById('notes').innerHTML=t+'</table>';
+    }else{document.getElementById('notes').innerHTML='<p style="color:var(--muted)">No research notes yet.</p>'}
+  }catch(e){}
+}
+loadNotes();
+</script></body></html>"""
+
+
+@app.route('/api/research/notes')
+def api_research_notes():
+    try:
+        from src.lxl_quantaxis.research.notebook import list_notes, note_count
+        notes = list_notes(limit=30)
+        return jsonify({"notes": [{
+            "id": n.id, "date": n.date, "symbol": n.symbol,
+            "title": n.title, "tags": n.tags,
+        } for n in notes], "count": note_count()})
+    except Exception as e:
+        return jsonify({"notes": [], "error": str(e)})
+
+
+@app.route('/api/research/pipeline/thesis', methods=['POST'])
+def api_research_pipeline_thesis():
+    d = request.json or {}
+    idea = d.get("idea", "")
+    try:
+        from src.lxl_quantaxis.research.ai_parser import parse_and_save
+        nid = parse_and_save(idea, use_llm=d.get("use_llm", False))
+        return jsonify({"ok": True, "note_id": nid, "summary": f"Note #{nid} created"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route('/api/research/pipeline/factors', methods=['POST'])
+def api_research_pipeline_factors():
+    d = request.json or {}
+    try:
+        from src.lxl_quantaxis.research.factor_mapper import map_thesis_to_factors
+        model = map_thesis_to_factors(text=d.get("idea", ""), use_llm=d.get("use_llm", False))
+        fd = model.to_dict()
+        return jsonify({"ok": True, "model": fd, "summary": f"Theme: {fd['theme']}, {len(fd['factors'])} factors"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 
 if __name__ == '__main__':

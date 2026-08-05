@@ -1,82 +1,165 @@
 # LXL·QuantAxis
 
-个人量化交易平台 — A股/港股/美股 · AI辅助 · 回测 + 模拟交易
+> **AI-Native Quantitative Investment Research Platform**  
+> Convert investment ideas into validated research — without writing strategy code.
 
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-349%20passed-brightgreen)](.)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](.)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Version](https://img.shields.io/badge/version-2.0.0-orange)](https://github.com/Ryhs666/LXL-QuantAxis/releases/tag/v2.0.0)
 
-## 快速开始
+---
+
+## What It Does
+
+```
+You write:  "AI servers will benefit from cloud CAPEX growth"
+                            │
+            ┌───────────────┼───────────────┐
+            ▼               ▼               ▼
+     Investment Thesis   Factor Model    Strategy DSL
+            │               │               │
+            └───────────────┼───────────────┘
+                            ▼
+                    Backtest Results
+                            │
+                            ▼
+                 Institutional Report
+                    (.md + .html)
+```
+
+**LXL·QuantAxis** bridges human investment intuition and systematic quantitative research. You provide the thesis. The platform handles factor mapping, strategy construction, backtesting, and report generation — through a **safe DSL that never executes AI-generated code**.
+
+## Quick Demo
+
+```bash
+# One command, 7 stages, 0 code to write
+$ python demo/demo_ai_research.py "AI servers benefiting from cloud CAPEX"
+
+[1/7] Thesis Extraction       [OK]  → Note #1: AI服务器产业链看多
+[2/7] Factor Mapping          [OK]  → momentum_score: 30%, trend: 25%
+[3/7] Strategy Generation     [OK]  → Entry: momentum > 0.6 AND trend > 0.5
+[4/7] Validation              [OK]  → All checks passed
+[5/7] Backtest                [OK]  → Sharpe: 1.25
+[6/7] AI Analysis             [OK]  → Viable strategy with moderate Sharpe
+[7/7] Report Generation       [OK]  → reports/AI_growth_strategy.md
+
+Complete: 7/7 stages passed
+```
+
+**[→ More examples](examples/research_cases/)**
+
+## Quick Start
 
 ```bash
 pip install -r requirements.txt
 
-python web_modern.py     # Web 平台 → http://127.0.0.1:5000
-python main.py           # CLI 菜单
-python src/app.py        # 桌面应用 (Tkinter)
+# Web UI (recommended)
+python web_modern.py                # → http://127.0.0.1:5000
+
+# CLI demo
+python demo/demo_ai_research.py     # Built-in example
+python demo/demo_ai_research.py "Your investment thesis"
+
+# Interactive CLI
+python main.py                      # 20+ functions menu
+python main.py --research list      # View research notebook
 ```
 
-## 安全启动
+### Web Pages
 
-本地开发默认监听 `127.0.0.1`，JWT 使用进程级随机密钥。生产环境必须配置：
+| Page | URL | What It Does |
+|------|-----|-------------|
+| Research Center | `/research` | Type an idea → get a full research report |
+| Classic Dashboard | `/classic` | Backtest, strategies, factors, diagnostics |
+| Trading Studio | `/studio` | Real-time K-line charts + signal alerts |
+| Paper Trading | `/game` | ¥1M simulated portfolio with leaderboard |
+| Admin | `/admin` | User management |
 
-```powershell
-$env:LXL_ENV = "production"
-$env:JWT_SECRET_KEY = "至少32位的随机密钥"
-$env:ADMIN_PASSWORD = "首次启动使用的至少12位强密码"
-python web_modern.py
+## Core Innovation
+
+### Safe AI Strategy DSL
+AI-generated strategies use declarative rules, never executable code:
+```
+entry: "momentum_score > 0.6 AND trend_strength > 0.5"
+exit:  "max_drawdown > 0.10"
+```
+Rules pass through **3 safety layers**: token blocklist → AST allowlist → factor whitelist. Zero `exec`/`eval`.
+
+### Research Pipeline (7 stages)
+1. **Thesis Extraction** — Natural language → structured investment thesis
+2. **Factor Mapping** — Thesis → 28-factor registry with style templates
+3. **Strategy Builder** — Factors → safe DSL rules
+4. **Validation** — Syntax, factors, parameters, risk checks
+5. **Backtest** — T+1 execution, A-share cost model, benchmark metrics
+6. **AI Analysis** — Metrics → strengths, weaknesses, suggestions
+7. **Report Generation** — 8-section institutional report (Markdown + HTML)
+
+### Research Cases
+Three detailed walkthroughs showing the complete workflow:
+
+| # | Case | Style |
+|---|------|-------|
+| 1 | [AI Infrastructure Supply Chain](examples/research_cases/case_ai_infrastructure.md) | Growth |
+| 2 | [Consumer Sector Value Recovery](examples/research_cases/case_consumer_recovery.md) | Value |
+| 3 | [Semiconductor Cycle Bottom](examples/research_cases/case_semiconductor_cycle.md) | Macro-Momentum |
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│           Web UI / CLI / Desktop GUI              │
+├──────────────────────────────────────────────────┤
+│  V2 Research Layer (src/lxl_quantaxis/)           │
+│  AI Pipeline · Strategy DSL · Portfolio Intel     │
+├──────────────────────────────────────────────────┤
+│  V1 Quant Engine (src/)                           │
+│  28 Factors · 16 Strategies · Backtest Engine     │
+├──────────────────────────────────────────────────┤
+│  Data: akshare (A-share) · yfinance (US/HK)       │
+│  Storage: SQLite ×10 · CSV Cache                  │
+└──────────────────────────────────────────────────┘
 ```
 
-## 功能
+[Full architecture documentation →](docs/ARCHITECTURE_V2.md)
 
-| 模块 | 功能 |
-|------|------|
-| 回测引擎 | T+1 成交 · 事件驱动 · A 股手续费 · 滑点 · 涨跌停 |
-| 策略库 | 双均线/RSI/MACD/布林带/海龟/均值回归/动量 + 自适应/做空/双向/状态感知 |
-| 因子体系 | 趋势/动量/波动/成交量/形态 + 情绪 + 基本面 |
-| AI 助手 | LLM 对话 · 策略工厂 · 复盘 · 市场简报 (DeepSeek/OpenAI/Qwen) |
-| 实时行情 | 腾讯财经 HTTP 轮询 · SocketIO WebSocket · K 线聚合 |
-| 模拟交易 | 100 万模拟金 · T+1 · 排行榜 |
-| 风控 | 移动止损 · 回撤熔断 · 凯利仓位 · 下单前闸门 |
-| 仪表盘 | v2.0 仪表盘 + 经典面板 + 交易工作室 + 管理后台 |
-| 组合分析 | 显式 simple/log 收益语义 · periodic/buy-and-hold 再平衡 · Sharpe/Calmar/MaxDD |
+## Features
 
-## 组合指标语义
+| Category | Capabilities |
+|----------|-------------|
+| **AI Research** | Thesis extraction, factor mapping, strategy DSL, backtest analysis, report generation |
+| **Factors** | 28 factors (trend, momentum, volatility, volume, pattern, sentiment, fundamental) |
+| **Strategies** | 16 strategies (7 classic, 5 advanced, 4 factor-composed) with V2 compiler |
+| **Backtest** | T+1 execution, A-share cost model, benchmark metrics, signal lag queue |
+| **Portfolio** | 4 allocation models, walk-forward, factor exposure, diversification scoring |
+| **Risk** | Pre-trade gate (6 checks), trailing stop, circuit breaker, Kelly sizing |
+| **Research** | Immutable notebook, thesis builder, AI parser, correlation analyzer |
 
-- **SIMPLE**: `r = p_t/p_{t-1} - 1`, 累计 `prod(1+r) - 1`
-- **LOG**: `r = ln(p_t/p_{t-1})`, 累计 `exp(sum(r)) - 1`
-- **PERIODIC**: 每期恢复目标权重
-- **BUY_AND_HOLD**: 权重随价格漂移
-- 零波动率时 Sharpe 返回 `None`，不返回误导性 inf
-- bool 类型参数明确拒绝，不隐式转换
-- 重复/乱序日期明确报错
+## Tech Stack
 
-## 数据
+Python 3.12 · Flask · Pandas/NumPy · Plotly · SQLite · JWT/bcrypt · akshare/yfinance · SciPy
 
-数据默认存储在 `~/.lxl_quantaxis/`。通过 `QUANT_DATA_DIR` 修改。
+## Roadmap
 
-## 测试
+| Version | Focus |
+|---------|-------|
+| v2.0.0 (current) | AI pipeline, safe DSL, research notebook, portfolio intelligence |
+| v2.1 | Real fundamental data (financial statements, macro), live paper trading |
+| v2.2 | Multi-step AI agent with iterative refinement, Docker support |
+| v3.0 | Collaborative research, multi-user notebooks, cloud deployment |
 
-```bash
-python -m pytest tests/ -q
-# 349 passed, 119 subtests
-```
+## Documentation
 
-## AI 配置
-
-`D:/trading_data/ai_config.json`:
-```json
-{"api_key": "sk-xxx", "base_url": "https://api.deepseek.com", "model": "deepseek-chat"}
-```
-
-## 安全说明
-
-- AI 因子生成使用白名单算子，不执行任何 AI 输出的代码
-- Paper Broker 为模拟交易，未接入真实券商
-- 自动交易需显式开启，默认仅记录信号
-- 组合优化器使用 walk-forward 样本外评估
-- 生产环境强制 JWT + 强密码
+| Document | Content |
+|----------|---------|
+| [Architecture V2](docs/ARCHITECTURE_V2.md) | System design with Mermaid diagrams |
+| [AI Pipeline](docs/AI_PIPELINE.md) | 7-stage pipeline detail |
+| [System Design](docs/SYSTEM_DESIGN.md) | Engineering principles |
+| [Research Cases](examples/research_cases/) | 3 complete research walkthroughs |
+| [Contributing](CONTRIBUTING.md) | Dev setup, conventions |
+| [Changelog](CHANGELOG.md) | All versions |
+| [Release Notes](docs/RELEASE_NOTES_v2.0.0.md) | v2.0.0 details |
 
 ## License
 
-MIT
+MIT · [Ryhs666](https://github.com/Ryhs666)

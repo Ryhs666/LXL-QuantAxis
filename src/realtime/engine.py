@@ -35,7 +35,9 @@ def _utcnow():
 def _load_ohlcv(symbol: str):
     """从缓存加载股票的OHLCV数据"""
     import os
-    cache_file = f"D:/trading_data/cache/A股_{symbol}_daily.csv"
+    from src.lxl_quantaxis.core.config.loader import get_config
+    cfg = get_config()
+    cache_file = f"{cfg.cache_dir}/A股_{symbol}_daily.csv"
     if not os.path.exists(cache_file):
         return None
     try:
@@ -217,7 +219,7 @@ class StrategyEngine:
     def _load_user_strategies(self, symbol: str) -> list:
         """加载所有关联该股票的用户策略配置"""
         try:
-            conn = sqlite3.connect("D:/trading_data/users.db")
+            conn = sqlite3.connect(cfg.data_dir + "/users.db")
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 "SELECT user_id, name, is_active FROM strategy_configs WHERE is_active=1"
@@ -231,7 +233,7 @@ class StrategyEngine:
                      action: str, price: float, reason: str):
         """保存信号到 user_trade_logs"""
         try:
-            conn = sqlite3.connect("D:/trading_data/users.db")
+            conn = sqlite3.connect(cfg.data_dir + "/users.db")
             conn.execute(
                 """INSERT INTO user_trade_logs (user_id, symbol, name, market, action, score, price, reason, created_at)
                    VALUES (?,?,?,'A股',?,?,?,?,?)""",

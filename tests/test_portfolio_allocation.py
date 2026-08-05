@@ -9,6 +9,7 @@ from src.lxl_quantaxis.portfolio.allocation import (
     inverse_volatility,
     risk_parity,
     mean_variance,
+    hierarchical_risk_parity,
     walk_forward,
     walk_forward_summary,
     WalkForwardWindow,
@@ -137,6 +138,45 @@ class TestMeanVariance:
         rets = _make_returns(n_assets=1)
         w = mean_variance(rets)
         assert w.iloc[0] == 1.0
+
+
+# ═══════════════════════════════════════════════════════════
+# HRP
+# ═══════════════════════════════════════════════════════════
+
+class TestHRP:
+    def test_weights_sum_to_one(self):
+        rets = _make_returns()
+        w = hierarchical_risk_parity(rets)
+        assert abs(w.sum() - 1.0) < 1e-6
+
+    def test_weights_non_negative(self):
+        rets = _make_returns()
+        w = hierarchical_risk_parity(rets)
+        assert (w >= 0).all()
+
+    def test_single_asset(self):
+        rets = _make_returns(n_assets=1)
+        w = hierarchical_risk_parity(rets)
+        assert w.iloc[0] == 1.0
+
+    def test_deterministic(self):
+        rets = _make_returns()
+        w1 = hierarchical_risk_parity(rets)
+        w2 = hierarchical_risk_parity(rets)
+        pd.testing.assert_series_equal(w1, w2)
+
+    def test_different_from_equal(self):
+        """HRP should not just be equal weight for diversified assets."""
+        # Create assets with different volatilities
+        rng = np.random.default_rng(99)
+        rets = pd.DataFrame({
+            "low_vol": rng.normal(0.0005, 0.005, 500),
+            "high_vol": rng.normal(0.0005, 0.025, 500),
+        }, index=pd.date_range("2024-01-01", periods=500, freq="B"))
+        w = hierarchical_risk_parity(rets)
+        # Lower vol asset should get higher weight
+        assert w["low_vol"] > w["high_vol"]
 
 
 # ═══════════════════════════════════════════════════════════
