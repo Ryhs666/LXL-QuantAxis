@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+
 
 import numpy as np
 import pandas as pd
@@ -142,7 +142,7 @@ def sharpe_ratio(
     return_type: ReturnType,
     risk_free_rate: float = 0.0,
     periods_per_year: float = 252,
-) -> Optional[float]:
+) -> float | None:
     """Annualized Sharpe ratio.
 
     Returns None (not inf or misleading number) when volatility is
@@ -180,7 +180,7 @@ def calmar_ratio(
     returns: pd.Series,
     return_type: ReturnType,
     periods_per_year: float = 252,
-) -> Optional[float]:
+) -> float | None:
     """Annualized return / abs(max drawdown).  None when drawdown is zero."""
     ann_ret = annualized_return(returns, return_type, periods_per_year)
     dd = max_drawdown(returns)
@@ -272,12 +272,12 @@ class PortfolioMetrics:
     total_return: float
     annualized_return: float
     annualized_volatility: float
-    sharpe_ratio: Optional[float]
+    sharpe_ratio: float | None
     max_drawdown: float
-    calmar_ratio: Optional[float]
+    calmar_ratio: float | None
     observation_count: int
     return_type: ReturnType
-    rebalance_mode: Optional[RebalanceMode] = None
+    rebalance_mode: RebalanceMode | None = None
 
     def to_dict(self) -> dict:
         return {

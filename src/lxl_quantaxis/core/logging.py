@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Optional
+
 
 
 def get_logger(name: str, level: str = "INFO") -> logging.Logger:
@@ -28,7 +28,7 @@ def get_logger(name: str, level: str = "INFO") -> logging.Logger:
     return logger
 
 
-def configure_root(level: str = "INFO", log_file: Optional[str] = None) -> None:
+def configure_root(level: str = "INFO", log_file: str | None = None) -> None:
     """Configure the root logger. Call once at startup."""
     root = logging.getLogger()
     root.setLevel(getattr(logging, level.upper(), logging.INFO))

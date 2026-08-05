@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from typing import Optional
+
 
 from src.lxl_quantaxis.core.config.loader import get_config
 from src.lxl_quantaxis.research.models import ResearchNote
@@ -60,7 +60,7 @@ class ResearchRepository:
             c.commit()
             return cur.lastrowid
 
-    def get(self, note_id: int) -> Optional[ResearchNote]:
+    def get(self, note_id: int) -> ResearchNote | None:
         with self._conn() as c:
             cur = c.execute(
                 "SELECT * FROM research_notes WHERE id = ?", (note_id,)

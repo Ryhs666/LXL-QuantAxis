@@ -7,7 +7,7 @@ existing backtest engine.  Zero code generation — pure AST compilation.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+
 
 from src.lxl_quantaxis.core.logging import get_logger
 from src.lxl_quantaxis.strategy.validator import validate_strategy_spec, ValidationResult
@@ -21,7 +21,7 @@ class BridgeResult:
     """Complete validation + compilation + backtest result."""
     spec: object
     validation: ValidationResult = field(default_factory=ValidationResult)
-    compiled: Optional[CompiledStrategy] = None
+    compiled: CompiledStrategy | None = None
     backtest_metrics: dict = field(default_factory=dict)
     status: str = "pending"  # pending | validated | compiled | backtested | failed
 
@@ -35,7 +35,7 @@ class BridgeResult:
         }
 
 
-def compile_strategy(spec) -> tuple[Optional[CompiledStrategy], ValidationResult]:
+def compile_strategy(spec) -> tuple[CompiledStrategy | None, ValidationResult]:
     """Validate then compile a StrategySpec.
 
     Returns (compiled_strategy, validation_result).

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Optional
+
 
 import numpy as np
 import pandas as pd
@@ -97,7 +97,7 @@ def risk_parity(returns: pd.DataFrame) -> pd.Series:
     return pd.Series(np.clip(w, 0, None) / w.sum(), index=returns.columns, name="weight")
 
 
-def mean_variance(returns: pd.DataFrame, target_return: Optional[float] = None) -> pd.Series:
+def mean_variance(returns: pd.DataFrame, target_return: float | None = None) -> pd.Series:
     """Long-only mean-variance.  Maximizes Sharpe if target_return is None."""
     n = len(returns.columns)
     if n == 1:
@@ -237,7 +237,7 @@ def walk_forward(
     model: str = "risk_parity",
     train_window: int = 252,
     test_window: int = 63,
-    target_return: Optional[float] = None,
+    target_return: float | None = None,
 ) -> list[WalkForwardWindow]:
     """Walk-forward evaluation.
 
