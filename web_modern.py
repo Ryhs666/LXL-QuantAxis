@@ -1344,7 +1344,7 @@ if(AUTH.loggedIn){renderPanel('dashboard');}
 
 @app.route('/')
 def index():
-    return redirect('/login')
+    return render_template('landing.html')
 
 @app.route('/login')
 def login_page():

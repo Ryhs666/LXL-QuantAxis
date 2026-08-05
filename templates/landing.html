@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LXL·QuantAxis — AI-Native Investment Research Infrastructure</title>
+<link rel="stylesheet" href="/static/css/terminal.css">
+<style>
+  .hero { padding: 80px 24px 60px; text-align: center; max-width: 800px; margin: 0 auto; }
+  .hero h1 { font: 600 36px/44px 'Inter',sans-serif; color: var(--text-primary); margin: 0 0 12px; letter-spacing: -0.02em; }
+  .hero .subtitle { font: 400 16px/26px 'Inter',sans-serif; color: var(--text-secondary); max-width: 560px; margin: 0 auto 32px; }
+  .hero .actions { display: flex; gap: 12px; justify-content: center; }
+  .pipeline-bar { display: flex; align-items: center; justify-content: center; gap: 0; padding: 40px 24px; overflow-x: auto; }
+  .pipeline-node { background: var(--bg-panel); border: 1px solid var(--border-subtle); padding: 16px 24px; text-align: center; min-width: 120px; transition: border-color 150ms; }
+  .pipeline-node:hover { border-color: var(--accent-tech); }
+  .pipeline-node .node-icon { font-size: 20px; margin-bottom: 6px; }
+  .pipeline-node .node-label { font: 600 10px/14px 'Inter',sans-serif; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
+  .pipeline-arrow { color: var(--border-active); font-size: 18px; padding: 0 4px; }
+  .snapshot-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; padding: 0 24px 24px; max-width: 1200px; margin: 0 auto; }
+  .score-bar { height: 6px; background: var(--border-subtle); border-radius: 3px; margin: 8px 0; }
+  .score-fill { height: 6px; border-radius: 3px; }
+  .score-fill-tech { background: var(--accent-tech); }
+  .score-fill-finance { background: var(--accent-finance); }
+  .score-fill-success { background: var(--accent-success); }
+  .feature-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; padding: 0 24px 40px; max-width: 1200px; margin: 0 auto; }
+  .feature-card { background: var(--bg-panel); border: 1px solid var(--border-subtle); padding: 20px; transition: border-color 150ms; }
+  .feature-card:hover { border-color: var(--accent-tech); }
+  .feature-card .feat-icon { font-size: 24px; margin-bottom: 10px; }
+  .feature-card .feat-title { font: 600 14px/20px 'Inter',sans-serif; color: var(--text-primary); margin-bottom: 6px; }
+  .feature-card .feat-desc { font: 400 12px/18px 'Inter',sans-serif; color: var(--text-secondary); }
+  .footer { border-top: 1px solid var(--border-subtle); padding: 32px 24px; text-align: center; color: var(--text-muted); font: 400 12px/18px 'Inter',sans-serif; }
+  @media(max-width:900px){.snapshot-grid,.feature-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="terminal-nav">
+  <a href="/" class="terminal-nav-brand">LXL·QuantAxis</a>
+  <a href="/research" class="terminal-nav-item">Research</a>
+  <a href="/pipeline" class="terminal-nav-item">Pipeline</a>
+  <a href="/portfolio" class="terminal-nav-item">Portfolio</a>
+  <a href="/cases" class="terminal-nav-item">Cases</a>
+  <div class="terminal-nav-right">
+    <div class="terminal-nav-status"><span class="terminal-nav-dot"></span> System Online</div>
+    <span>v2.0.0</span>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <h1>LXL·QuantAxis</h1>
+  <p class="subtitle">AI-Native Investment Research Infrastructure.<br>Transform investment ideas into validated strategies and institutional-grade research.</p>
+  <div class="actions">
+    <a href="/research" class="btn-terminal btn-terminal-primary">Launch Research Terminal</a>
+    <a href="/pipeline" class="btn-terminal">Explore Pipeline</a>
+  </div>
+</section>
+
+<!-- Research Snapshot -->
+<section class="section-label" style="padding:0 24px;max-width:1200px;margin:0 auto;">Research Snapshot</section>
+<div class="snapshot-grid" style="margin-top:12px">
+  <div class="terminal-panel">
+    <div class="panel-header"><span class="panel-title">Featured Case: AI Infrastructure Cycle</span><span class="panel-subtitle">Updated 2026-08-05</span></div>
+    <p style="color:var(--text-secondary);font-size:13px;line-height:1.7;margin:0 0 16px">
+      Cloud service provider CAPEX growth creates a multi-year structural demand cycle for AI server supply chains. Enterprise AI adoption is accelerating across industries, GPU supply remains constrained, and order backlogs extend 12-18 months.
+    </p>
+    <div style="display:flex;gap:16px">
+      <div><span class="metric-label">Conviction</span><div class="metric-value" style="font-size:14px;margin-top:2px">HIGH</div></div>
+      <div><span class="metric-label">Horizon</span><div class="metric-value" style="font-size:14px;margin-top:2px">6-12M</div></div>
+      <div><span class="metric-label">Style</span><div class="metric-value" style="font-size:14px;margin-top:2px">Growth</div></div>
+    </div>
+  </div>
+
+  <div class="terminal-panel">
+    <div class="panel-header"><span class="panel-title">Investment Score</span></div>
+    <div class="metric-value" style="font-size:32px;margin:8px 0">86<span style="font-size:18px;color:var(--text-muted)">/100</span></div>
+    <div class="score-bar"><div class="score-fill score-fill-tech" style="width:82%"></div></div>
+    <div style="margin-top:8px"><span class="metric-label">Factor Quality</span></div>
+    <div class="score-bar"><div class="score-fill score-fill-success" style="width:85%"></div></div>
+    <div style="margin-top:8px"><span class="metric-label">Strategy Fit</span></div>
+    <div class="score-bar"><div class="score-fill score-fill-finance" style="width:78%"></div></div>
+    <div style="margin-top:8px"><span class="metric-label">Risk Profile</span></div>
+  </div>
+</div>
+
+<!-- Pipeline -->
+<section class="section-label" style="padding:0 24px;max-width:1200px;margin:24px auto 0">Research Intelligence Pipeline</section>
+<div class="pipeline-bar">
+  <div class="pipeline-node"><div class="node-icon">&#9997;</div><div class="node-label">Idea</div></div>
+  <span class="pipeline-arrow">→</span>
+  <div class="pipeline-node"><div class="node-icon">&#9881;</div><div class="node-label">Thesis Engine</div></div>
+  <span class="pipeline-arrow">→</span>
+  <div class="pipeline-node"><div class="node-icon">&#9632;</div><div class="node-label">Factor Model</div></div>
+  <span class="pipeline-arrow">→</span>
+  <div class="pipeline-node"><div class="node-icon">&#9878;</div><div class="node-label">Strategy DSL</div></div>
+  <span class="pipeline-arrow">→</span>
+  <div class="pipeline-node"><div class="node-icon">&#9776;</div><div class="node-label">Backtest</div></div>
+  <span class="pipeline-arrow">→</span>
+  <div class="pipeline-node"><div class="node-icon">&#9733;</div><div class="node-label">Portfolio</div></div>
+  <span class="pipeline-arrow">→</span>
+  <div class="pipeline-node"><div class="node-icon">&#9998;</div><div class="node-label">Report</div></div>
+</div>
+
+<!-- Feature Modules -->
+<section class="section-label" style="padding:0 24px;max-width:1200px;margin:24px auto 0">Capabilities</section>
+<div class="feature-grid" style="margin-top:12px">
+  <div class="feature-card">
+    <div class="feat-icon">&#9881;</div>
+    <div class="feat-title">AI Research Engine</div>
+    <div class="feat-desc">Natural language thesis extraction with dual-mode LLM/rule-based parsing. Structured investment theses with bull/bear cases and risk factors.</div>
+  </div>
+  <div class="feature-card">
+    <div class="feat-icon">&#9632;</div>
+    <div class="feat-title">Factor Intelligence</div>
+    <div class="feat-desc">28-factor registry across 5 categories. IC analysis, decay detection, correlation heatmap. Style-to-factor mapping with explainable weights.</div>
+  </div>
+  <div class="feature-card">
+    <div class="feat-icon">&#9878;</div>
+    <div class="feat-title">Safe Strategy DSL</div>
+    <div class="feat-desc">Declarative strategy rules compiled through AST allowlist. Zero AI code execution. 16 built-in strategies with parameter optimization.</div>
+  </div>
+  <div class="feature-card">
+    <div class="feat-icon">&#9733;</div>
+    <div class="feat-title">Portfolio Intelligence</div>
+    <div class="feat-desc">4 allocation models with walk-forward validation. Factor exposure analysis. Institutional research reports in Markdown and HTML.</div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="footer">
+  LXL·QuantAxis v2.0.0 &mdash; Part of the LXL Investment Research Ecosystem &mdash; <a href="https://github.com/Ryhs666/LXL-QuantAxis" style="color:var(--accent-tech)">GitHub</a>
+</footer>
+
+</body>
+</html>
