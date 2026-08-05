@@ -14,19 +14,28 @@ jobs:
         python-version: ["3.12"]
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -e ".[realtime]"
           pip install pytest ruff bandit
+
+      - name: Verify import
+        run: python -c "import src.lxl_quantaxis; print('Import OK')"
+
       - name: Lint (ruff)
-        run: ruff check src/ --select E9,F821,F601,F811,B006
+        run: python -m ruff check src/lxl_quantaxis/ src/auth/ --select E9,F821,F601,F811,B006
+
       - name: Security scan (bandit)
-        run: bandit -r src/lxl_quantaxis/ -ll -q -x tests
+        run: python -m bandit -r src/lxl_quantaxis/ src/auth/ -ll -q -x tests
+
       - name: Compile check
         run: python -m compileall -q src/
+
       - name: Tests
-        run: pytest tests/ -q --tb=short
+        run: python -m pytest tests/ -q --tb=short
