@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.0.0-showcase (2026-08-05)
+
+### Showcase Edition — Institutional Web Interface
+
+6-page Bloomberg/Aladdin-style terminal interface built on `terminal.css` design system:
+
+- **Landing Page** (`/`): Institutional hero with research snapshot + pipeline visualization
+- **AI Research Terminal** (`/terminal`): Bloomberg-style 3-column pipeline execution with live stage tracking and Research Summary panel
+- **Pipeline Visualization** (`/pipeline`): 7-stage interactive flow with Input-Processing-Output detail per stage
+- **Portfolio Dashboard** (`/portfolio`): Aladdin-style analytics with ECharts allocation/factor/attribution charts
+- **Research Cases** (`/cases`): Goldman Sachs-style archive with expandable case cards, factor profiles, and backtest metrics
+- **Shared Navigation**: Unified top bar across all pages with status indicator
+
+Zero backend changes. All existing API routes and quant logic preserved.
+
 ## v2.0.0-stable (2026-08-05)
 
 ### Showcase Polish

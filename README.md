@@ -49,6 +49,22 @@ Complete: 7/7 stages passed
 
 **[→ More examples](examples/research_cases/)**
 
+## Showcase Edition
+
+Institutional Bloomberg/Aladdin-style web interface. Six pages, zero backend changes.
+
+| Page | URL |
+|------|-----|
+| Landing | `/` |
+| AI Terminal | `/terminal` |
+| Pipeline | `/pipeline` |
+| Portfolio | `/portfolio` |
+| Cases | `/cases` |
+
+```bash
+python web_modern.py  # → http://127.0.0.1:5000
+```
+
 ## Quick Start
 
 ```bash
