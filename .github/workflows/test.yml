@@ -28,7 +28,7 @@ jobs:
       - name: Verify import
         run: python -c "import src.lxl_quantaxis; print('Import OK')"
 
-      - name: Lint (ruff)
+      - name: Lint V2 package (ruff)
         run: python -m ruff check src/lxl_quantaxis/ src/auth/ --select E9,F821,F601,F811,B006
 
       - name: Security scan (bandit)
