@@ -142,7 +142,21 @@ $ python demo_ai_research.py "AI servers benefiting from cloud CAPEX growth"
 
 ---
 
-## 6. Quick Start
+## 6. Research Examples
+
+Three detailed case studies demonstrate the full AI research workflow:
+
+| Case | Theme | Style | Question |
+|------|-------|-------|-----------|
+| [AI Infrastructure](examples/research_cases/case_ai_infrastructure.md) | AI服务器产业链 | Growth | Is the AI investment cycle sustainable? |
+| [Consumer Recovery](examples/research_cases/case_consumer_recovery.md) | 消费板块复苏 | Value | Is the consumer sector undervalued? |
+| [Semiconductor Cycle](examples/research_cases/case_semiconductor_cycle.md) | 半导体周期 | Macro-Momentum | Are we at a cycle bottom? |
+
+Each case walks through: research question → thesis → factor mapping → strategy construction → backtest interpretation → risk analysis → conclusion.
+
+See [Research Case Library](examples/research_cases/README.md) for the full collection.
+
+## 7. Quick Start
 
 ```bash
 # Install
@@ -171,7 +185,7 @@ python main.py --research list  # View research notebook
 
 ---
 
-## 7. Tech Stack
+## 8. Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -185,7 +199,7 @@ python main.py --research list  # View research notebook
 
 ---
 
-## 8. Project Philosophy
+## 9. Project Philosophy
 
 LXL·QuantAxis is built on a research-driven workflow:
 
