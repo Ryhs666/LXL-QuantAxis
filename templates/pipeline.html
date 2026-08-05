@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pipeline — LXL·QuantAxis</title>
+<link rel="stylesheet" href="/static/css/terminal.css">
+<style>
+  .pipeline-container{max-width:1100px;margin:0 auto;padding:24px}
+  .pipeline-flow{display:flex;align-items:flex-start;gap:0;overflow-x:auto;padding:32px 0}
+  .pipe-node{flex-shrink:0;width:130px;text-align:center;cursor:pointer;transition:all 200ms}
+  .pipe-node .node-circle{width:64px;height:64px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font:600 18px 'JetBrains Mono',monospace;border:2px solid var(--border-subtle);background:var(--bg-panel);color:var(--text-muted);transition:all 200ms}
+  .pipe-node:hover .node-circle{border-color:var(--accent-tech);color:var(--text-primary);background:var(--bg-elevated);transform:scale(1.08)}
+  .pipe-node.active .node-circle{border-color:var(--accent-finance);color:var(--accent-finance)}
+  .pipe-node .node-label{font:600 11px/14px 'Inter',sans-serif;color:var(--text-secondary)}
+  .pipe-connector{flex-shrink:0;width:40px;display:flex;align-items:center;justify-content:center;padding-top:26px}
+  .pipe-connector .connector-line{width:40px;height:2px;background:var(--border-subtle)}
+  .pipe-connector .connector-arrow{color:var(--border-active);font-size:14px;margin-left:-2px}
+  .detail-panel{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:24px;margin-top:24px;min-height:200px}
+  .detail-panel h2{font:600 18px/26px 'Inter',sans-serif;color:var(--text-primary);margin:0 0 16px}
+  .detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  .detail-block{background:var(--bg-root);border:1px solid var(--border-subtle);padding:14px}
+  .detail-block .block-title{font:600 10px/14px 'Inter',sans-serif;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px}
+  .detail-block .block-content{font:400 12px/18px 'JetBrains Mono',monospace;color:var(--text-secondary);white-space:pre-wrap;word-break:break-word}
+  .detail-block.input{border-left:3px solid var(--accent-tech)}
+  .detail-block.processing{border-left:3px solid var(--accent-warning)}
+  .detail-block.output{border-left:3px solid var(--accent-finance)}
+  .tech-tag{display:inline-block;padding:2px 8px;margin:2px;background:rgba(59,130,246,.1);color:var(--accent-tech);font:400 10px/16px 'JetBrains Mono',monospace;border-radius:2px}
+  .metric-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-subtle);font:400 12px 'JetBrains Mono',monospace}
+  .metric-row .metric-name{color:var(--text-muted)}.metric-row .metric-val{color:var(--text-primary)}
+  @media(max-width:900px){.detail-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<nav class="terminal-nav">
+  <a href="/" class="terminal-nav-brand">LXL·QuantAxis</a>
+  <a href="/terminal" class="terminal-nav-item">Terminal</a>
+  <a href="/research" class="terminal-nav-item">Research</a>
+  <a href="/pipeline" class="terminal-nav-item active">Pipeline</a>
+  <a href="/portfolio" class="terminal-nav-item">Portfolio</a>
+  <div class="terminal-nav-right"><div class="terminal-nav-status"><span class="terminal-nav-dot"></span> Online</div><span>v2.0.0</span></div>
+</nav>
+
+<div class="pipeline-container">
+  <div class="section-label">AI Research Pipeline</div>
+  <p style="color:var(--text-secondary);font:400 13px/20px 'Inter',sans-serif;margin:8px 0 0">7-stage automated workflow: Natural Language Thesis → Institutional Research Report. Click any node for details.</p>
+
+  <!-- Pipeline Flow -->
+  <div class="pipeline-flow">
+    <div class="pipe-node active" onclick="selectStage(0)" id="node0">
+      <div class="node-circle">01</div>
+      <div class="node-label">Thesis<br>Extraction</div>
+    </div>
+    <div class="pipe-connector"><div class="connector-line"></div><span class="connector-arrow">→</span></div>
+    <div class="pipe-node" onclick="selectStage(1)" id="node1">
+      <div class="node-circle">02</div>
+      <div class="node-label">Fundamental<br>Intelligence</div>
+    </div>
+    <div class="pipe-connector"><div class="connector-line"></div><span class="connector-arrow">→</span></div>
+    <div class="pipe-node" onclick="selectStage(2)" id="node2">
+      <div class="node-circle">03</div>
+      <div class="node-label">Factor<br>Mapping</div>
+    </div>
+    <div class="pipe-connector"><div class="connector-line"></div><span class="connector-arrow">→</span></div>
+    <div class="pipe-node" onclick="selectStage(3)" id="node3">
+      <div class="node-circle">04</div>
+      <div class="node-label">Strategy<br>Builder</div>
+    </div>
+    <div class="pipe-connector"><div class="connector-line"></div><span class="connector-arrow">→</span></div>
+    <div class="pipe-node" onclick="selectStage(4)" id="node4">
+      <div class="node-circle">05</div>
+      <div class="node-label">Backtest<br>Engine</div>
+    </div>
+    <div class="pipe-connector"><div class="connector-line"></div><span class="connector-arrow">→</span></div>
+    <div class="pipe-node" onclick="selectStage(5)" id="node5">
+      <div class="node-circle">06</div>
+      <div class="node-label">Portfolio<br>Analysis</div>
+    </div>
+    <div class="pipe-connector"><div class="connector-line"></div><span class="connector-arrow">→</span></div>
+    <div class="pipe-node" onclick="selectStage(6)" id="node6">
+      <div class="node-circle">07</div>
+      <div class="node-label">Research<br>Report</div>
+    </div>
+  </div>
+
+  <!-- Detail Panel -->
+  <div class="detail-panel" id="detailPanel"></div>
+</div>
+
+<script>
+const STAGES = [
+  {
+    name:"AI Thesis Extraction",module:"src/lxl_quantaxis/research/ai_parser.py",
+    status:"Production",
+    input:`Natural Language Text
+"AI servers benefiting from cloud CAPEX growth..."
+Up to 8,000 characters`,
+    processing:`1. LLM mode: Structured extraction prompt → JSON parsing
+2. Rule mode: Keyword heuristics (Chinese/English)
+3. Schema validation: All fields clamped to enum whitelist
+4. Confidence score assigned (0.35 rule / 0.70 LLM)`,
+    output:`InvestmentThesis {
+  symbol: "AI_server",
+  core_argument: "Cloud CAPEX...",
+  bullish_reasons: "Enterprise AI adoption...",
+  bearish_reasons: "Overcapacity risk...",
+  key_risks: "Export controls...",
+  style: "growth",
+  conviction: "high"
+}`,
+    tech:["Python","ai_parser.py","LLM (optional)","JSON Schema"]
+  },
+  {
+    name:"Fundamental Intelligence",module:"src/lxl_quantaxis/data/fundamental/",
+    status:"Development",
+    input:`Symbol: 600519 (or proxy)
+Financial statements via akshare
+PE/PB/ROE historical series
+Shenwan industry classification`,
+    processing:`1. FundamentalFetcher: Download quarterly financials via akshare
+2. FundamentalSeriesDB: SQLite persistence with incremental updates
+3. IndustryContext: Sector-relative comparison (stock vs peers)
+4. FundamentalFactorBridge: Register PE/ROE factors into FACTOR_REGISTRY`,
+    output:`FundamentalSnapshot {
+  symbol: "000001",
+  pe_ttm: 32.5, pb: 8.2,
+  roe_ttm: 25.3%, revenue_yoy: +15.2%,
+  industry: "Technology — Semiconductors",
+  market_cap: "¥2.1T"
+}`,
+    tech:["Python","akshare","SQLite","Shenwan Classification"]
+  },
+  {
+    name:"Factor Mapping",module:"src/lxl_quantaxis/research/factor_mapper.py",
+    status:"Production",
+    input:`Structured InvestmentThesis object
+Investment style: "growth"
+28-factor registry (FACTOR_REGISTRY)`,
+    processing:`1. Style→Factor template lookup: "growth" → momentum+trend
+2. LLM mode: Full registry in prompt, factors selected by relevance
+3. Weight allocation: momentum(0.30), trend(0.25), roc(0.25), volume(0.20)
+4. Validation: All factor names cross-checked against FACTOR_REGISTRY`,
+    output:`FactorModel {
+  theme: "AI Infrastructure",
+  factors: [
+    {name:"momentum_score", weight:0.30, category:"momentum"},
+    {name:"trend_strength", weight:0.25, category:"trend"},
+    {name:"roc_10", weight:0.25, category:"momentum"},
+    {name:"volume_trend", weight:0.20, category:"volume"}
+  ],
+  confidence: 0.35, source: "rule"
+}`,
+    tech:["Python","FACTOR_REGISTRY (28 factors)","LLM (optional)","Style Templates"]
+  },
+  {
+    name:"Strategy Builder",module:"src/lxl_quantaxis/research/strategy_builder.py",
+    status:"Production",
+    input:`FactorModel with weighted factors
+Investment style context
+Risk tolerance parameters`,
+    processing:`1. Factor weights → entry condition thresholds
+2. DSL rule generation: "factor > threshold" strings
+3. Safety check: token blocklist (import, exec, eval, os, subprocess)
+4. AST validation: Compare, BoolOp, Name, Constant nodes only
+5. StrategySpec compilation with version, parameters, data requirements`,
+    output:`StrategySpec {
+  name: "AI_growth_strategy",
+  entry_rule: "momentum_score>0.6 AND trend_strength>0.5",
+  exit_rule: "max_drawdown>0.10",
+  risk_rules: {max_drawdown_pct:10, stop_loss_pct:5},
+  source: "ai",
+  version: "1.0.0"
+}`,
+    tech:["Python AST Compiler","DSL Engine","StrategySpec","Safety Validator"]
+  },
+  {
+    name:"Backtest Engine",module:"src/lxl_quantaxis/strategy/backtest_bridge.py",
+    status:"Production",
+    input:`StrategySpec (compiled)
+OHLCV data via DataPortal
+Symbol, date range, initial capital`,
+    processing:`1. Validation: rule syntax, factor existence, parameter ranges
+2. Compilation: StrategyCompiler with AST allowlist
+3. Execution: T+1 fill (no look-ahead bias)
+4. A-share cost model: commission (min ¥5), stamp duty (0.05% sell), transfer fee
+5. Benchmark metrics: Alpha, Beta, IR, Tracking Error`,
+    output:`BridgeResult {
+  status: "backtested",
+  metrics: {
+    sharpe: 1.25, total_return: +18.5%,
+    max_drawdown: -9.8%, win_rate: 58.3%,
+    trades: 24, annual_return: +15.2%
+  }
+}`,
+    tech:["Event-Driven Engine","T+1 Execution","A-Share Cost Model","Benchmark Metrics"]
+  },
+  {
+    name:"Portfolio Analysis",module:"src/lxl_quantaxis/portfolio/intelligence.py",
+    status:"Production",
+    input:`Multiple StrategySpecs with allocation
+Factor exposure per strategy
+Risk metrics per strategy`,
+    processing:`1. Allocation: equal/risk_weighted/sharpe_weighted
+2. Factor exposure aggregation across strategies
+3. Category rollup: growth/momentum/value/volatility/volume/trend
+4. Diversification score (Jaccard diversity)
+5. Correlation and concentration risk warnings`,
+    output:`PortfolioAssessment {
+  allocation: [{growth:40%, value:30%, momentum:20%, macro:10%}],
+  factor_exposure: {growth:45%, momentum:35%, trend:20%},
+  diversification_score: 0.72,
+  risk_warning: "Moderate concentration in growth factors",
+  expected_return: 12.4%, expected_risk: 14.2%
+}`,
+    tech:["Portfolio Optimizer","Risk Parity","Walk-Forward","Factor Exposure"]
+  },
+  {
+    name:"Research Report",module:"src/lxl_quantaxis/research/report_generator.py",
+    status:"Production",
+    input:`All pipeline outputs:
+- InvestmentThesis
+- FactorModel
+- StrategySpec
+- Backtest metrics
+- BacktestAssessment
+- PortfolioAssessment`,
+    processing:`1. Aggregate all pipeline outputs
+2. Populate 8 standard sections:
+   1) Investment Summary
+   2) Investment Thesis
+   3) Factor Analysis (with table)
+   4) Strategy Construction (with rules)
+   5) Backtest Results (with metrics table)
+   6) Portfolio Analysis (with allocation)
+   7) Risk Analysis
+   8) Conclusion
+3. Render: Markdown (.md) + Styled HTML (.html)
+4. Save to disk: reports/<strategy_name>.md`,
+    output:`ResearchReport {
+  title: "量化研究: AI Infrastructure",
+  sections: 8,
+  formats: [Markdown, HTML],
+  saved: "reports/AI_growth_strategy.md"
+}`,
+    tech:["Markdown Generator","HTML Renderer","8-Section Template","Disk Output"]
+  }
+];
+
+function selectStage(idx){
+  document.querySelectorAll('.pipe-node').forEach((n,i)=>{n.classList.toggle('active',i===idx)});
+  const s = STAGES[idx];
+  const statusCls = {'Production':'badge-done','Development':'badge-running'}[s.status]||'badge-pending';
+  document.getElementById('detailPanel').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div><h2>${String(idx+1).padStart(2,'0')} — ${s.name}</h2>
+        <span style="color:var(--text-muted);font:400 11px 'JetBrains Mono',monospace">${s.module}</span></div>
+      <span class="badge ${statusCls}">${s.status}</span>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      ${s.tech.map(t=>`<span class="tech-tag">${t}</span>`).join('')}
+    </div>
+    <div class="detail-grid">
+      <div class="detail-block input"><div class="block-title">Input</div><div class="block-content">${s.input}</div></div>
+      <div class="detail-block processing"><div class="block-title">Processing</div><div class="block-content">${s.processing}</div></div>
+      <div class="detail-block output"><div class="block-title">Output</div><div class="block-content">${s.output}</div></div>
+    </div>
+  `;
+}
+
+// Default: show stage 1
+selectStage(0);
+</script>
+</body>
+</html>
