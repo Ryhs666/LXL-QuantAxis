@@ -143,7 +143,16 @@ $ python demo_ai_research.py "AI servers benefiting from cloud CAPEX growth"
 
 ---
 
-## 6. Research Examples
+## 6. Preview
+
+*Screenshots coming soon. Run the demo or web UI to see the platform in action.*
+
+```bash
+python demo/demo_ai_research.py    # CLI pipeline
+python web_modern.py               # Web UI → http://127.0.0.1:5000
+```
+
+## 7. Research Examples
 
 Three detailed case studies demonstrate the full AI research workflow:
 
@@ -157,7 +166,7 @@ Each case walks through: research question → thesis → factor mapping → str
 
 See [Research Case Library](examples/research_cases/README.md) for the full collection.
 
-## 7. Quick Start
+## 8. Quick Start
 
 ```bash
 # Install
@@ -186,7 +195,7 @@ python main.py --research list  # View research notebook
 
 ---
 
-## 8. Tech Stack
+## 9. Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -200,7 +209,7 @@ python main.py --research list  # View research notebook
 
 ---
 
-## 9. Project Philosophy
+## 10. Project Philosophy
 
 LXL·QuantAxis is built on a research-driven workflow:
 
@@ -222,7 +231,7 @@ Every investment thesis is: (1) recorded as a research note, (2) mapped to measu
 
 ---
 
-## 10. LXL Ecosystem
+## 11. LXL Ecosystem
 
 LXL·QuantAxis is part of the LXL Investment Research Ecosystem:
 

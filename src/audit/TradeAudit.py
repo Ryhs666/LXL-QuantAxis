@@ -1,7 +1,7 @@
 """
 TradeAudit — 交易日志审计模块 (v6.1)
 
-1. 记录每次交易决策到 D:/trading_data/logs/audit.log (微秒时间戳)
+1. 记录每次交易决策到 $QUANT_DATA_DIR/logs/audit.log (微秒时间戳)
 2. 异常检测: 连续失败3次或日跌幅>5%时桌面弹窗告警
 """
 
@@ -14,7 +14,7 @@ from typing import Optional
 # 日志配置
 # ═══════════════════════════════════════════
 
-LOG_DIR = "D:/trading_data/logs"
+LOG_DIR = os.environ.get("QUANT_DATA_DIR", os.environ.get("TRADING_DATA_DIR", os.path.expanduser("~/lxl_quantaxis_data"))) + "/logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # 审计日志 — 微秒精度

@@ -8,7 +8,9 @@ from datetime import datetime
 from typing import Dict, List
 
 
-def generate_daily_report(output_dir: str = "D:/trading_data/reports") -> str:
+def generate_daily_report(output_dir: str = None) -> str:
+    if output_dir is None:
+        output_dir = os.environ.get("QUANT_DATA_DIR", os.environ.get("TRADING_DATA_DIR", os.path.expanduser("~/lxl_quantaxis_data"))) + "/reports"
     """
     生成每日简报 (HTML格式, 浏览器可打印为PDF)
     返回: 文件路径

@@ -1206,7 +1206,7 @@ class App:
         tk.Label(dlg, text="AI Connection", font=FT, bg=BG2, fg=TX1).pack(pady=(14,2))
         tk.Label(dlg, text="OpenAI / DeepSeek / Qwen / Ollama", font=FST, bg=BG2, fg=TX3).pack(pady=(0,14))
 
-        cp = "D:/trading_data/ai_config.json"
+        cp = os.environ.get("QUANT_DATA_DIR", os.environ.get("TRADING_DATA_DIR", os.path.expanduser("~/lxl_quantaxis_data"))) + "/config/ai_config.json"
         ex = {}
         if os.path.exists(cp):
             try:

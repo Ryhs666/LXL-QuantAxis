@@ -1,6 +1,16 @@
 # Changelog
 
-## v2.0.0 (2026-08-05)
+## v2.0.0-stable (2026-08-05) — Release Candidate
+
+### Release Notes
+- All 30+ commits from `fix/portfolio-metrics-v2` merged
+- Hardcoded paths eliminated (8 → 0 in runtime code; 3 remain as config defaults)
+- Full test suite passing
+- CI pipeline configured (pytest + ruff + bandit)
+- Professional documentation: 24 docs across architecture, pipeline, cases, ecosystem
+- Open source ready: MIT license, CONTRIBUTING.md, issue/PR templates
+
+## v2.0.0-alpha (2026-08-04)
 
 ### Architecture Upgrade
 - Dual-layer V1/V2 architecture with clean dependency direction (14 V1→V2, 0 V2→V1)
