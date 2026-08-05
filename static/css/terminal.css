@@ -1,0 +1,362 @@
+/* ═══════════════════════════════════════════════════════════
+   LXL·QuantAxis Terminal — Institutional Design System
+   Bloomberg × BlackRock Aladdin × AI Research Lab
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. Color System ─────────────────────────────────── */
+:root {
+  --bg-root:       #05070A;
+  --bg-panel:      #0B1220;
+  --bg-elevated:   #111D30;
+  --border-subtle: #1A2A44;
+  --border-active: #2A4A74;
+  --text-primary:  #F8FAFC;
+  --text-secondary:#94A3B8;
+  --text-muted:    #475569;
+  --accent-tech:   #3B82F6;
+  --accent-finance:#C9A227;
+  --accent-success:#22C55E;
+  --accent-danger: #EF4444;
+  --accent-warning:#F59E0B;
+}
+
+/* ── 2. Typography ───────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-root);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* Type scale */
+.page-title    { font: 600 24px/32px 'Inter', sans-serif; color: var(--text-primary); }
+.section-label { font: 600 11px/16px 'Inter', sans-serif; color: var(--text-muted);
+                 text-transform: uppercase; letter-spacing: 0.05em; }
+.metric-value  { font: 500 16px/24px 'JetBrains Mono', monospace; color: var(--text-primary); }
+.metric-label  { font: 400 11px/16px 'Inter', sans-serif; color: var(--text-secondary); }
+.metric-delta  { font: 400 12px/16px 'Inter', sans-serif; }
+.data-cell     { font: 400 13px/20px 'JetBrains Mono', monospace; color: var(--text-secondary); }
+.code-block    { font: 400 12px/18px 'JetBrains Mono', monospace; color: var(--text-secondary); }
+.status-badge  { font: 600 10px/14px 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.03em; }
+
+.metric-positive { color: var(--accent-success); }
+.metric-negative { color: var(--accent-danger); }
+.metric-finance  { color: var(--accent-finance); }
+.metric-muted    { color: var(--text-muted); }
+
+/* ── 3. Layout Grid ──────────────────────────────────── */
+.terminal-grid       { display: grid; gap: 16px; padding: 24px; }
+.terminal-grid-2     { grid-template-columns: 1fr 1fr; }
+.terminal-grid-3     { grid-template-columns: 1fr 1fr 1fr; }
+.terminal-grid-2-1   { grid-template-columns: 2fr 1fr; }
+.terminal-grid-1-2   { grid-template-columns: 1fr 2fr; }
+
+.terminal-row        { display: flex; gap: 0; padding: 0 24px; }
+.terminal-col        { flex: 1; padding: 0 8px; }
+.terminal-col-2      { flex: 2; }
+.terminal-col-3      { flex: 3; }
+
+/* ── 4. Panel Style ──────────────────────────────────── */
+.terminal-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  padding: 16px;
+}
+
+.terminal-panel-elevated {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-active);
+  padding: 16px;
+}
+
+.terminal-panel-flat {
+  background: transparent;
+  border: none;
+  padding: 16px 0;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.panel-title {
+  font: 600 11px/16px 'Inter', sans-serif;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.panel-subtitle {
+  font: 400 11px/16px 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+}
+
+/* ── 5. Card Style ───────────────────────────────────── */
+.terminal-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  padding: 16px;
+  transition: border-color 150ms ease;
+}
+
+.terminal-card:hover {
+  border-color: var(--border-active);
+}
+
+.terminal-card-interactive {
+  cursor: pointer;
+}
+
+.terminal-card-interactive:hover {
+  border-color: var(--accent-tech);
+  background: var(--bg-elevated);
+}
+
+.metric-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  padding: 14px 16px;
+  min-width: 180px;
+}
+
+.metric-card .metric-value {
+  margin-top: 4px;
+  font-size: 20px;
+}
+
+/* ── 6. Button Style ─────────────────────────────────── */
+.btn-terminal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  font: 500 13px/20px 'Inter', sans-serif;
+  border: 1px solid var(--border-active);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.btn-terminal:hover {
+  background: var(--border-subtle);
+  border-color: var(--accent-tech);
+}
+
+.btn-terminal-primary {
+  background: var(--accent-tech);
+  border-color: var(--accent-tech);
+  color: #fff;
+}
+
+.btn-terminal-primary:hover {
+  background: #2563EB;
+  border-color: #2563EB;
+}
+
+.btn-terminal-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-terminal-ghost:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.btn-terminal-sm {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+/* ── 7. Navigation Style ─────────────────────────────── */
+.terminal-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 24px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-subtle);
+  gap: 4px;
+}
+
+.terminal-nav-brand {
+  font: 600 15px/48px 'Inter', sans-serif;
+  color: var(--accent-finance);
+  margin-right: 24px;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+
+.terminal-nav-item {
+  padding: 0 16px;
+  height: 48px;
+  line-height: 48px;
+  font: 400 13px/48px 'Inter', sans-serif;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+
+.terminal-nav-item:hover {
+  color: var(--text-primary);
+}
+
+.terminal-nav-item.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-tech);
+}
+
+.terminal-nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font: 400 11px/48px 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+}
+
+.terminal-nav-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.terminal-nav-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-success);
+}
+
+/* ── 8. Table Style ──────────────────────────────────── */
+.terminal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.terminal-table th {
+  text-align: left;
+  padding: 6px 10px;
+  font: 600 10px/14px 'Inter', sans-serif;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.terminal-table td {
+  padding: 6px 10px;
+  font: 400 13px/20px 'JetBrains Mono', monospace;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(26, 42, 68, 0.5);
+}
+
+.terminal-table tr:hover td {
+  background: rgba(17, 29, 48, 0.5);
+}
+
+.terminal-table .cell-finance { color: var(--accent-finance); }
+.terminal-table .cell-positive { color: var(--accent-success); }
+.terminal-table .cell-negative { color: var(--accent-danger); }
+.terminal-table .cell-muted    { color: var(--text-muted); }
+
+/* ── 9. Chart Placeholder ────────────────────────────── */
+.chart-container {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font: 400 12px/18px 'Inter', sans-serif;
+}
+
+/* ── 10. Utility ─────────────────────────────────────── */
+.text-finance  { color: var(--accent-finance); }
+.text-tech     { color: var(--accent-tech); }
+.text-success  { color: var(--accent-success); }
+.text-danger   { color: var(--accent-danger); }
+.text-warning  { color: var(--accent-warning); }
+.text-muted    { color: var(--text-muted); }
+.text-mono     { font-family: 'JetBrains Mono', monospace; }
+
+.mt-8  { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.mb-8  { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.gap-8  { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+
+.flex        { display: flex; }
+.flex-col    { flex-direction: column; }
+.items-center{ align-items: center; }
+.justify-between { justify-content: space-between; }
+.flex-1      { flex: 1; }
+.w-full      { width: 100%; }
+
+/* ── 11. Status Indicators ───────────────────────────── */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.status-dot-success { background: var(--accent-success); }
+.status-dot-warning { background: var(--accent-warning); }
+.status-dot-danger  { background: var(--accent-danger); }
+.status-dot-muted   { background: var(--text-muted); }
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font: 600 10px/16px 'Inter', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid;
+}
+
+.status-pill-success { color: var(--accent-success); border-color: var(--accent-success); }
+.status-pill-warning { color: var(--accent-warning); border-color: var(--accent-warning); }
+.status-pill-danger  { color: var(--accent-danger);  border-color: var(--accent-danger); }
+.status-pill-muted   { color: var(--text-muted);     border-color: var(--border-subtle); }
+
+/* ── 12. Loading Skeleton ────────────────────────────── */
+@keyframes terminal-pulse {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 0.6; }
+}
+
+.skeleton {
+  background: var(--border-subtle);
+  animation: terminal-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-text  { height: 14px; margin: 4px 0; border-radius: 2px; }
+.skeleton-title { height: 20px; width: 60%; margin-bottom: 12px; border-radius: 2px; }
+.skeleton-value { height: 28px; width: 40%; border-radius: 2px; }
