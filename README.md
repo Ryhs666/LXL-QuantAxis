@@ -1,249 +1,156 @@
 # LXL·QuantAxis
 
-> AI-Native Quantitative Investment Research Platform  
-> **Version**: 2.0.0 | **Status**: Active Development | **License**: MIT
+> **AI-Native Quantitative Investment Research Platform**  
+> Convert investment ideas into validated research — without writing strategy code.
 
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](.)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-
-**LXL·QuantAxis** bridges the gap between **human investment intuition** and **systematic quantitative research**. It converts natural language investment ideas into structured factor models, executable strategies, validated backtests, and institutional research reports — all without requiring the researcher to write Python strategy code.
-
----
-
-## 1. Overview
-
-### The Problem
-
-Traditional quant systems follow a rigid pipeline:
-
-```
-Data → Factors → Strategy → Backtest
-```
-
-The researcher manually codes every step. An investment idea ("AI servers will benefit from cloud CAPEX") requires translating qualitative insight into factor definitions, strategy rules, and backtest parameters — a process that takes days and creates friction between ideation and validation.
-
-### The Solution
-
-LXL·QuantAxis inverts the workflow:
-
-```
-Human Thesis → AI → Factors → Strategy → Validation → Report
-```
-
-You write what you believe. The platform handles the rest.
-
-- **Say it**: "Cloud CAPEX growth benefits AI server supply chain."
-- **Get back**: Factor model, strategy DSL, backtest metrics, risk assessment, and an institutional research report.
+[![Version](https://img.shields.io/badge/version-2.0.0-orange)](https://github.com/Ryhs666/LXL-QuantAxis/releases/tag/v2.0.0)
 
 ---
 
-## 2. Core Innovation
-
-### 2.1 AI Investment Research Pipeline
-
-A 6-stage pipeline that transforms unstructured text into validated research output:
+## What It Does
 
 ```
-Natural Language → Thesis → Factor Model → Strategy DSL → Backtest → Report
+You write:  "AI servers will benefit from cloud CAPEX growth"
+                            │
+            ┌───────────────┼───────────────┐
+            ▼               ▼               ▼
+     Investment Thesis   Factor Model    Strategy DSL
+            │               │               │
+            └───────────────┼───────────────┘
+                            ▼
+                    Backtest Results
+                            │
+                            ▼
+                 Institutional Report
+                    (.md + .html)
 ```
 
-Each stage is auditable, reversible, and works with or without LLM access.
+**LXL·QuantAxis** bridges human investment intuition and systematic quantitative research. You provide the thesis. The platform handles factor mapping, strategy construction, backtesting, and report generation — through a **safe DSL that never executes AI-generated code**.
 
-### 2.2 Human Thesis → Quant Strategy
-
-The platform understands investment language. "Growth at reasonable price" maps to momentum + value factors. "Defensive dividend play" maps to low-volatility + quality. The mapping is explainable — every factor choice comes with a reason.
-
-### 2.3 Safe Strategy DSL
-
-AI-generated strategies are expressed as a declarative DSL with AST-level validation. **No Python code is ever executed from AI output.** The compiler uses an allowlist of safe operations, blocking imports, attribute access, and arbitrary function calls.
-
-### 2.4 Automated Research Reports
-
-The pipeline produces institutional-style reports in Markdown and HTML with eight standard sections: investment summary, thesis, factor analysis, strategy construction, backtest results, portfolio analysis, risk assessment, and conclusion.
-
----
-
-## 3. System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Web UI / CLI / Demo                      │
-├─────────────────────────────────────────────────────────────┤
-│  Research Layer   │  thesis · notebook · ai_parser · report  │
-│  AI Layer         │  factor_mapper · strategy_builder        │
-│                   │  backtest_analyzer                       │
-│  Quant Layer      │  factors(28) · strategies(16)            │
-│                   │  backtest engine · cost model            │
-│  Portfolio Layer  │  analytics · allocation · intelligence   │
-│  Data Layer       │  akshare · yfinance · SQLite ×10         │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 4. AI Research Pipeline
-
-```
-$ python demo_ai_research.py "AI servers benefiting from cloud CAPEX growth"
-
-[1/6] AI Thesis Extraction
-  → Note #1: AI服务器产业链看多
-
-[2/6] Factor Model Mapping
-  → Theme: AI Infrastructure, Factors: 4, Source: rule
-
-[3/6] Strategy Building
-  → Strategy: AI_growth_strategy, Source: rule
-
-[4/6] Backtest (000001, 2024-01-01)
-  → Status: backtested, Sharpe: 1.25
-
-[5/6] AI Backtest Analysis
-  → Summary: Viable strategy with moderate Sharpe
-
-[6/6] Research Report
-  → Report saved: reports/AI_growth_strategy.md
-```
-
----
-
-## 5. Features
-
-### AI Research Agent
-- Parse natural language into structured investment theses
-- Dual mode: LLM (DeepSeek/OpenAI/Qwen) or rule-based fallback
-- Schema-validated output — no hallucinated field values
-
-### Factor Intelligence
-- 28 built-in factors across trend, momentum, volatility, volume, pattern
-- Style-to-factor mapping: growth, value, momentum, macro, event-driven
-- Factor correlation analysis with redundancy detection
-
-### Strategy Engine
-- 16 built-in strategies (MA cross, RSI, MACD, Bollinger, Turtle, etc.)
-- Safe DSL compiler: AST allowlist, no code execution
-- T+1 execution with A-share cost model (commission, stamp duty, transfer fee)
-- Validation: rule syntax, factor existence, parameter ranges
-
-### Backtesting
-- Event-driven engine with next-bar fill (no look-ahead bias)
-- Benchmark-relative metrics: Alpha, Beta, IR, Tracking Error
-- Walk-forward evaluation with strict train/test separation
-
-### Portfolio Analytics
-- Explicit return semantics: simple vs log, periodic vs buy-and-hold
-- 4 allocation models: equal, risk parity, mean-variance, HRP
-- Factor exposure analysis across 6 categories
-
-### Research Report Generator
-- 8-section institutional report in Markdown and HTML
-- Auto-populated from pipeline outputs
-- One-click save to disk
-
----
-
-## 6. Preview
-
-*Screenshots coming soon. Run the demo or web UI to see the platform in action.*
+## Quick Demo
 
 ```bash
-python demo/demo_ai_research.py    # CLI pipeline
-python web_modern.py               # Web UI → http://127.0.0.1:5000
+# One command, 7 stages, 0 code to write
+$ python demo/demo_ai_research.py "AI servers benefiting from cloud CAPEX"
+
+[1/7] Thesis Extraction       [OK]  → Note #1: AI服务器产业链看多
+[2/7] Factor Mapping          [OK]  → momentum_score: 30%, trend: 25%
+[3/7] Strategy Generation     [OK]  → Entry: momentum > 0.6 AND trend > 0.5
+[4/7] Validation              [OK]  → All checks passed
+[5/7] Backtest                [OK]  → Sharpe: 1.25
+[6/7] AI Analysis             [OK]  → Viable strategy with moderate Sharpe
+[7/7] Report Generation       [OK]  → reports/AI_growth_strategy.md
+
+Complete: 7/7 stages passed
 ```
 
-## 7. Research Examples
+**[→ More examples](examples/research_cases/)**
 
-Three detailed case studies demonstrate the full AI research workflow:
-
-| Case | Theme | Style | Question |
-|------|-------|-------|-----------|
-| [AI Infrastructure](examples/research_cases/case_ai_infrastructure.md) | AI服务器产业链 | Growth | Is the AI investment cycle sustainable? |
-| [Consumer Recovery](examples/research_cases/case_consumer_recovery.md) | 消费板块复苏 | Value | Is the consumer sector undervalued? |
-| [Semiconductor Cycle](examples/research_cases/case_semiconductor_cycle.md) | 半导体周期 | Macro-Momentum | Are we at a cycle bottom? |
-
-Each case walks through: research question → thesis → factor mapping → strategy construction → backtest interpretation → risk analysis → conclusion.
-
-See [Research Case Library](examples/research_cases/README.md) for the full collection.
-
-## 8. Quick Start
+## Quick Start
 
 ```bash
-# Install
 pip install -r requirements.txt
 
-# Launch Web UI
-python web_modern.py            # → http://127.0.0.1:5000
+# Web UI (recommended)
+python web_modern.py                # → http://127.0.0.1:5000
 
-# Run AI Research Pipeline
-python demo_ai_research.py "Your investment idea"
+# CLI demo
+python demo/demo_ai_research.py     # Built-in example
+python demo/demo_ai_research.py "Your investment thesis"
 
-# CLI
-python main.py                  # Interactive menu
-python main.py --research list  # View research notebook
+# Interactive CLI
+python main.py                      # 20+ functions menu
+python main.py --research list      # View research notebook
 ```
 
 ### Web Pages
 
-| Page | Path | Description |
-|------|------|-------------|
-| Research Center | `/research` | AI pipeline runner + notebook browser |
-| Classic Panel | `/classic` | Full-featured quant dashboard |
-| Trading Studio | `/studio` | Real-time charts + signals |
-| Paper Trading | `/game` | Simulated trading with leaderboard |
+| Page | URL | What It Does |
+|------|-----|-------------|
+| Research Center | `/research` | Type an idea → get a full research report |
+| Classic Dashboard | `/classic` | Backtest, strategies, factors, diagnostics |
+| Trading Studio | `/studio` | Real-time K-line charts + signal alerts |
+| Paper Trading | `/game` | ¥1M simulated portfolio with leaderboard |
 | Admin | `/admin` | User management |
 
----
+## Core Innovation
 
-## 9. Tech Stack
+### Safe AI Strategy DSL
+AI-generated strategies use declarative rules, never executable code:
+```
+entry: "momentum_score > 0.6 AND trend_strength > 0.5"
+exit:  "max_drawdown > 0.10"
+```
+Rules pass through **3 safety layers**: token blocklist → AST allowlist → factor whitelist. Zero `exec`/`eval`.
 
-| Layer | Technology |
-|-------|-----------|
-| Core | Python 3.12, NumPy, Pandas |
-| Web | Flask, Flask-SocketIO, Plotly |
-| Storage | SQLite (10 databases) |
-| Data | akshare (A-share), yfinance (US/HK) |
-| AI | OpenAI-compatible API (DeepSeek/Qwen/Ollama) |
-| Optimization | SciPy (optional), Optuna (optional) |
-| Security | JWT, bcrypt, AST allowlist |
+### Research Pipeline (7 stages)
+1. **Thesis Extraction** — Natural language → structured investment thesis
+2. **Factor Mapping** — Thesis → 28-factor registry with style templates
+3. **Strategy Builder** — Factors → safe DSL rules
+4. **Validation** — Syntax, factors, parameters, risk checks
+5. **Backtest** — T+1 execution, A-share cost model, benchmark metrics
+6. **AI Analysis** — Metrics → strengths, weaknesses, suggestions
+7. **Report Generation** — 8-section institutional report (Markdown + HTML)
 
----
+### Research Cases
+Three detailed walkthroughs showing the complete workflow:
 
-## 10. Project Philosophy
+| # | Case | Style |
+|---|------|-------|
+| 1 | [AI Infrastructure Supply Chain](examples/research_cases/case_ai_infrastructure.md) | Growth |
+| 2 | [Consumer Sector Value Recovery](examples/research_cases/case_consumer_recovery.md) | Value |
+| 3 | [Semiconductor Cycle Bottom](examples/research_cases/case_semiconductor_cycle.md) | Macro-Momentum |
 
-LXL·QuantAxis is built on a research-driven workflow:
+## Architecture
 
 ```
-Hypothesis → Model → Validation → Review
+┌──────────────────────────────────────────────────┐
+│           Web UI / CLI / Desktop GUI              │
+├──────────────────────────────────────────────────┤
+│  V2 Research Layer (src/lxl_quantaxis/)           │
+│  AI Pipeline · Strategy DSL · Portfolio Intel     │
+├──────────────────────────────────────────────────┤
+│  V1 Quant Engine (src/)                           │
+│  28 Factors · 16 Strategies · Backtest Engine     │
+├──────────────────────────────────────────────────┤
+│  Data: akshare (A-share) · yfinance (US/HK)       │
+│  Storage: SQLite ×10 · CSV Cache                  │
+└──────────────────────────────────────────────────┘
 ```
 
-Every investment thesis is: (1) recorded as a research note, (2) mapped to measurable factors, (3) tested against historical data, (4) reviewed by AI analysis, and (5) preserved for future reference. Nothing is ephemeral. The research notebook is the system of record.
+[Full architecture documentation →](docs/ARCHITECTURE_V2.md)
 
-### What It Is
-- An AI-assisted investment research platform
-- A DSL-based strategy construction system
-- A backtest engine with institutional reporting
+## Features
 
-### What It Is Not
-- A live trading system (paper trading only)
-- A market data vendor (relies on akshare/yfinance)
-- A replacement for professional judgment (AI output requires human review)
+| Category | Capabilities |
+|----------|-------------|
+| **AI Research** | Thesis extraction, factor mapping, strategy DSL, backtest analysis, report generation |
+| **Factors** | 28 factors (trend, momentum, volatility, volume, pattern, sentiment, fundamental) |
+| **Strategies** | 16 strategies (7 classic, 5 advanced, 4 factor-composed) with V2 compiler |
+| **Backtest** | T+1 execution, A-share cost model, benchmark metrics, signal lag queue |
+| **Portfolio** | 4 allocation models, walk-forward, factor exposure, diversification scoring |
+| **Risk** | Pre-trade gate (6 checks), trailing stop, circuit breaker, Kelly sizing |
+| **Research** | Immutable notebook, thesis builder, AI parser, correlation analyzer |
 
----
+## Tech Stack
 
-## 11. LXL Ecosystem
+Python 3.12 · Flask · Pandas/NumPy · Plotly · SQLite · JWT/bcrypt · akshare/yfinance · SciPy
 
-LXL·QuantAxis is part of the LXL Investment Research Ecosystem:
+## Documentation
 
-| Component | Role |
-|-----------|------|
-| **LXL Equity Research Lab** | Fundamental analysis: company research, industry mapping, financial modeling, valuation |
-| **LXL·QuantAxis V2.0** | Quantitative intelligence: AI thesis extraction, factor mapping, strategy validation, automated reporting |
-
-Together they form a technology-driven research platform where **human analysts generate investment ideas** and **AI validates, structures, and documents them**.
-
-See [LXL Ecosystem Overview](docs/lxl_ecosystem/LXL_ECOSYSTEM_OVERVIEW.md) for details.
+| Document | Content |
+|----------|---------|
+| [Architecture V2](docs/ARCHITECTURE_V2.md) | System design with Mermaid diagrams |
+| [AI Pipeline](docs/AI_PIPELINE.md) | 7-stage pipeline detail |
+| [System Design](docs/SYSTEM_DESIGN.md) | Engineering principles |
+| [Research Cases](examples/research_cases/) | 3 complete research walkthroughs |
+| [Contributing](CONTRIBUTING.md) | Dev setup, conventions |
+| [Changelog](CHANGELOG.md) | All versions |
+| [Release Notes](docs/RELEASE_NOTES_v2.0.0.md) | v2.0.0 details |
 
 ## License
 
-MIT
+MIT · [Ryhs666](https://github.com/Ryhs666)
