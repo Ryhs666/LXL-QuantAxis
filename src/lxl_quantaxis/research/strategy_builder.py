@@ -82,8 +82,11 @@ class StrategyBlueprint:
         """Convert to V2 StrategySpec (requires strategy module)."""
         from src.lxl_quantaxis.strategy.base.spec import StrategySpec
 
-        safe_id = re.sub(r'[^a-z0-9_.-]', '_', self.name.lower().replace(' ', '_'))
-        strategy_id = f"ai.{safe_id[:30]}"
+        safe_id = re.sub(r'[^a-z0-9_.-]', '', self.name.lower().replace(' ', '_'))
+        safe_id = safe_id.strip('_.-')[:30]
+        if not safe_id or not any(c.isalnum() for c in safe_id):
+            safe_id = f"strategy_{abs(hash(self.name)) % 100000:05d}"
+        strategy_id = f"ai.{safe_id}"
 
         entry = f" {self.entry_logic} ".join(
             f"({c})" for c in self.entry_conditions
