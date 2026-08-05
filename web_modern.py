@@ -3179,6 +3179,10 @@ def api_game_rank():
 # v2.0 Research Center
 # ═══════════════════════════════════════════════════════════
 
+@app.route('/terminal')
+def terminal_page():
+    return render_template('terminal.html')
+
 @app.route('/research')
 def research_center():
     """AI Research Center page."""
