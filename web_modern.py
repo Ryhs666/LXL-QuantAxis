@@ -3179,6 +3179,10 @@ def api_game_rank():
 # v2.0 Research Center
 # ═══════════════════════════════════════════════════════════
 
+@app.route('/cases')
+def cases_page():
+    return render_template('cases.html')
+
 @app.route('/portfolio')
 def portfolio_page():
     return render_template('portfolio.html')

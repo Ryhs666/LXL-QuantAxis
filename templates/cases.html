@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Research Cases — LXL·QuantAxis</title>
+<link rel="stylesheet" href="/static/css/terminal.css">
+<style>
+  .cases-container{max-width:1100px;margin:0 auto;padding:24px}
+  .case-card{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:0;margin-bottom:20px;transition:border-color 150ms}
+  .case-card:hover{border-color:var(--border-active)}
+  .case-header{padding:20px 24px;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+  .case-header:hover{background:var(--bg-elevated)}
+  .case-number{font:600 14px/20px 'JetBrains Mono',monospace;color:var(--text-muted);min-width:28px}
+  .case-info{flex:1}
+  .case-info h2{font:600 18px/26px 'Inter',sans-serif;color:var(--text-primary);margin:0 0 6px}
+  .case-info .question{font:400 14px/20px 'Inter',sans-serif;color:var(--text-secondary);margin:0}
+  .case-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .case-tag{display:inline-block;padding:2px 8px;background:rgba(59,130,246,.1);color:var(--accent-tech);font:400 10px/16px 'JetBrains Mono',monospace;border-radius:2px}
+  .case-score{text-align:center;min-width:80px}
+  .case-score .score-num{font:600 32px/40px 'JetBrains Mono',monospace;color:var(--accent-finance)}
+  .case-score .score-label{font:600 9px/12px 'Inter',sans-serif;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em}
+  .case-body{display:none;padding:0 24px 24px;border-top:1px solid var(--border-subtle)}
+  .case-body.open{display:block}
+  .case-body .section-title{font:600 12px/16px 'Inter',sans-serif;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin:20px 0 8px}
+  .case-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .case-block{background:var(--bg-root);border:1px solid var(--border-subtle);padding:14px}
+  .case-block h4{font:600 12px/16px 'Inter',sans-serif;color:var(--text-secondary);margin:0 0 8px}
+  .case-block p{font:400 12px/18px 'Inter',sans-serif;color:var(--text-muted);margin:0;line-height:1.7}
+  .factor-inline{display:inline-flex;align-items:center;gap:6px;margin-right:16px;font:400 12px/16px 'JetBrains Mono',monospace;color:var(--text-secondary)}
+  .factor-dot{width:8px;height:8px;border-radius:2px}
+  .metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .mini-metric{background:var(--bg-root);border:1px solid var(--border-subtle);padding:12px;text-align:center}
+  .mini-metric .mini-val{font:600 18px/26px 'JetBrains Mono',monospace;color:var(--text-primary)}
+  .mini-metric .mini-lbl{font:600 9px/12px 'Inter',sans-serif;color:var(--text-muted);text-transform:uppercase;letter-spacing:.02em;margin-top:2px}
+  .expand-hint{font:400 11px/14px 'Inter',sans-serif;color:var(--text-muted);margin-top:12px}
+  .case-footer{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:16px 24px;border-top:1px solid var(--border-subtle);margin-top:16px}
+  @media(max-width:768px){.case-grid,.metrics-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<nav class="terminal-nav">
+  <a href="/" class="terminal-nav-brand">LXL·QuantAxis</a>
+  <a href="/terminal" class="terminal-nav-item">Terminal</a>
+  <a href="/research" class="terminal-nav-item">Research</a>
+  <a href="/pipeline" class="terminal-nav-item">Pipeline</a>
+  <a href="/portfolio" class="terminal-nav-item">Portfolio</a>
+  <a href="/cases" class="terminal-nav-item active">Cases</a>
+  <div class="terminal-nav-right"><div class="terminal-nav-status"><span class="terminal-nav-dot"></span>Live</div><span>v2.0.0</span></div>
+</nav>
+
+<div class="cases-container">
+  <div class="section-label">Research Archive</div>
+  <p style="color:var(--text-secondary);font:400 13px/20px 'Inter',sans-serif;margin:8px 0 24px">AI-generated institutional investment research cases. Each case demonstrates the complete 7-stage pipeline from thesis to report.</p>
+
+  <!-- Case 1: NVIDIA -->
+  <div class="case-card">
+    <div class="case-header" onclick="toggleCase(this)">
+      <div class="case-number">01</div>
+      <div class="case-info">
+        <h2>NVIDIA AI Infrastructure Cycle</h2>
+        <p class="question">Will AI infrastructure spending continue expanding beyond the current CAPEX cycle?</p>
+        <div class="case-tags"><span class="case-tag">Growth</span><span class="case-tag">Momentum</span><span class="case-tag">Technology</span><span class="case-tag">AI Hardware</span></div>
+      </div>
+      <div class="case-score"><div class="score-num">86</div><div class="score-label">Score</div></div>
+    </div>
+    <div class="case-body">
+      <div class="section-title">Investment Thesis</div>
+      <div class="case-grid">
+        <div class="case-block"><h4>Core Argument</h4><p>AI compute demand creates a multi-year infrastructure cycle that differs from previous hardware cycles in duration and end-demand composition. Enterprise AI adoption across industries provides structural demand that extends beyond the initial CAPEX buildout.</p></div>
+        <div class="case-block"><h4>Key Drivers</h4><p>Cloud CAPEX growth ($200B+ 2025-26) · GPU supply constraints maintaining pricing power · Order backlogs providing 12-18 month earnings visibility · Enterprise AI adoption expanding beyond tech sector.</p></div>
+      </div>
+
+      <div class="section-title">Factor Profile</div>
+      <div style="padding:8px 0">
+        <span class="factor-inline"><span class="factor-dot" style="background:var(--accent-tech)"></span>Growth 90</span>
+        <span class="factor-inline"><span class="factor-dot" style="background:var(--accent-finance)"></span>Momentum 75</span>
+        <span class="factor-inline"><span class="factor-dot" style="background:var(--accent-success)"></span>Quality 82</span>
+      </div>
+
+      <div class="section-title">Strategy</div>
+      <div class="case-block"><h4>AI Growth Momentum Strategy</h4><p>Entry: momentum_score > 0.6 AND trend_strength > 0.5<br>Exit: max_drawdown > 0.10 OR trend_strength < 0.3<br>Risk: max_drawdown_pct=10%, stop_loss_pct=5%, max_single_pct=15%</p></div>
+
+      <div class="section-title">Backtest Metrics</div>
+      <div class="metrics-grid">
+        <div class="mini-metric"><div class="mini-val metric-positive">+18.6%</div><div class="mini-lbl">Annual Return</div></div>
+        <div class="mini-metric"><div class="mini-val" style="color:var(--accent-finance)">1.35</div><div class="mini-lbl">Sharpe Ratio</div></div>
+        <div class="mini-metric"><div class="mini-val metric-negative">-12.4%</div><div class="mini-lbl">Max Drawdown</div></div>
+        <div class="mini-metric"><div class="mini-val" style="color:var(--text-primary)">58.3%</div><div class="mini-lbl">Win Rate</div></div>
+      </div>
+
+      <div class="case-footer">
+        <span class="expand-hint">Research Note #42 · Generated 2026-08-05</span>
+        <a href="/terminal" class="btn-terminal btn-terminal-sm">Run in Terminal →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Case 2: TSMC -->
+  <div class="case-card">
+    <div class="case-header" onclick="toggleCase(this)">
+      <div class="case-number">02</div>
+      <div class="case-info">
+        <h2>TSMC Semiconductor Recovery</h2>
+        <p class="question">Is the semiconductor recovery sustainable given geopolitical uncertainty and inventory normalization?</p>
+        <div class="case-tags"><span class="case-tag">Macro</span><span class="case-tag">Momentum</span><span class="case-tag">Semiconductor</span><span class="case-tag">Cycle</span></div>
+      </div>
+      <div class="case-score"><div class="score-num">78</div><div class="score-label">Score</div></div>
+    </div>
+    <div class="case-body">
+      <div class="section-title">Investment Thesis</div>
+      <div class="case-grid">
+        <div class="case-block"><h4>Core Argument</h4><p>Global semiconductor cycle approaching a trough with inventory destocking in its final phase. AI-driven demand provides a structural catalyst for the next upcycle that differs from traditional PC/smartphone-driven cycles.</p></div>
+        <div class="case-block"><h4>Key Drivers</h4><p>Memory prices stabilizing after 18-month decline · Foundry utilization rebounding (70%→85%) · AI inference demand creating new structural growth · Inventory days at chip designers peaked Q3 2024.</p></div>
+      </div>
+      <div class="section-title">Factor Profile</div>
+      <div style="padding:8px 0">
+        <span class="factor-inline"><span class="factor-dot" style="background:var(--accent-tech)"></span>Trend 72</span>
+        <span class="factor-inline"><span class="factor-dot" style="background:var(--accent-warning)"></span>Volatility 65</span>
+        <span class="factor-inline"><span class="factor-dot" style="background:var(--accent-finance)"></span>Momentum 58</span>
+      </div>
+      <div class="section-title">Risk Factors</div>
+      <div class="case-block"><h4>Geopolitical Risk: HIGH</h4><p>Taiwan Strait tensions · Export controls on advanced node equipment · Supply chain diversification costs · Customer concentration (Apple, NVIDIA, AMD = 60%+ of advanced node revenue).</p></div>
+      <div class="case-footer">
+        <span class="expand-hint">Research Note #38 · Generated 2026-07-28</span>
+        <a href="/terminal" class="btn-terminal btn-terminal-sm">Run in Terminal →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Case 3: Apple -->
+  <div class="case-card">
+    <div class="case-header" onclick="toggleCase(this)">
+      <div class="case-number">03</div>
+      <div class="case-info">
+        <h2>Apple Ecosystem Moat</h2>
+        <p class="question">Can Apple's ecosystem moat sustain margin expansion as hardware growth matures?</p>
+        <div class="case-tags"><span class="case-tag">Quality</span><span class="case-tag">Value</span><span class="case-tag">Consumer</span><span class="case-tag">Ecosystem</span></div>
+      </div>
+      <div class="case-score"><div class="score-num">92</div><div class="score-label">Score</div></div>
+    </div>
+    <div class="case-body">
+      <div class="section-title">Investment Thesis</div>
+      <div class="case-grid">
+        <div class="case-block"><h4>Core Argument</h4><p>Apple's services revenue ($85B+ annual run rate, 70%+ gross margin) provides a quality premium that hardware-only peers cannot replicate. The installed base of 2.2B active devices creates a recurring revenue stream that decouples from hardware cycle volatility.</p></div>
+        <div class="case-block"><h4>Competitive Advantage</h4><p>iOS ecosystem lock-in (95% retention) · Services attach rate increasing (Apple Pay, Music, TV+, iCloud) · $160B cash enables buybacks through any cycle · Vertical integration from silicon (M-series, A-series) to software.</p></div>
+      </div>
+      <div class="section-title">Factor Profile</div>
+      <div style="padding:8px 0">
+        <span class="factor-inline"><span class="factor-dot" style="background:var(--accent-success)"></span>Quality 95</span>
+        <span class="factor-inline"><span class="factor-dot" style="background:var(--accent-finance)"></span>Value 70</span>
+        <span class="factor-inline"><span class="factor-dot" style="background:var(--accent-tech)"></span>Growth 62</span>
+      </div>
+      <div class="case-footer">
+        <span class="expand-hint">Research Note #35 · Generated 2026-07-15</span>
+        <a href="/terminal" class="btn-terminal btn-terminal-sm">Run in Terminal →</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleCase(header){
+  var body = header.nextElementSibling;
+  body.classList.toggle('open');
+}
+// Open first case by default
+document.querySelector('.case-body').classList.add('open');
+</script>
+</body>
+</html>
