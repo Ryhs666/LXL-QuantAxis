@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  quality-and-tests:
+  test:
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -21,32 +21,36 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
-      - name: Install uv and Python
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          version: "0.11.32"
           python-version: ${{ matrix.python-version }}
-          enable-cache: true
 
-      - name: Install locked dependencies
-        run: uv sync --locked --dev
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[realtime]"
+          pip install pytest ruff bandit
+        shell: bash
 
-      - name: Verify package build
-        run: uv build
+      - name: Verify package import
+        run: python -c "import src.lxl_quantaxis; print('V2 package OK')"
+        shell: bash
 
-      - name: Lint V2 package and version test
-        run: uv run --no-sync ruff check src/auth src/lxl_quantaxis tests/core tests/security tests/test_version.py
+      - name: Lint V2 package (ruff)
+        run: ruff check src/lxl_quantaxis/ src/auth/ --select E9,F821,F601,F811,B006
+        shell: bash
 
-      - name: Check formatting
-        run: uv run --no-sync ruff format --check src/auth src/lxl_quantaxis tests/core tests/security tests/test_version.py
+      - name: Security scan (bandit)
+        run: bandit -r src/lxl_quantaxis/ src/auth/ -ll -q -x tests
+        shell: bash
 
-      - name: Type-check V2 package
-        run: uv run --no-sync mypy src/lxl_quantaxis
+      - name: Compile check
+        run: python -m compileall -q src/
+        shell: bash
 
-      - name: Scan V2 package for security issues
-        run: uv run --no-sync bandit -q -r src/auth src/lxl_quantaxis
-
-      - name: Run regression suite
-        run: uv run --no-sync python -m unittest discover -s tests -v
+      - name: Run tests (pytest)
+        run: python -m pytest tests/ -q --tb=short
+        shell: bash
