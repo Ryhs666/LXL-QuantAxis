@@ -13,7 +13,7 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, request, jsonify, render_template, redirect, g
+from flask import Flask, request, jsonify, render_template, render_template_string, redirect, g
 from datetime import datetime, timedelta
 from src.auth import (
     SECURITY_SETTINGS,
