@@ -49,6 +49,32 @@ Complete: 7/7 stages passed
 
 **[→ More examples](examples/research_cases/)**
 
+---
+
+## V3 Memory System Showcase 🧠
+
+> **NEW in V3** — Investment Memory System: track every thesis, decision, and lesson.
+
+```bash
+# Seed demo data (3 complete research cases)
+python scripts/seed_v3_memory.py --reset
+
+# Launch and explore
+python web_modern.py
+# → http://127.0.0.1:5000/journal
+```
+
+| Feature | Description |
+|---------|-------------|
+| **Memory Timeline** | 4 entry types: Notes, Theses, Decisions, Reflections |
+| **FTS5 Search** | Full-text search in Chinese and English |
+| **Confidence Calibration** | Track conviction vs. actual outcomes |
+| **3 Demo Cases** | NVIDIA (+41%), ZTE (+28%), Micron (-12%) |
+
+**[→ V3 Memory Showcase](docs/V3_MEMORY_SHOWCASE.md)** | **[→ V3 Architecture](docs/V3_PRODUCT_ARCHITECTURE.md)**
+
+---
+
 ## Showcase Edition
 
 Institutional Bloomberg/Aladdin-style web interface. Six pages, zero backend changes.
