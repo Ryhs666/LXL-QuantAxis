@@ -125,6 +125,62 @@ class WorkspaceService:
     ) -> bool:
         return self._memory.mark_thesis_outcome(entry_id, status, detail, return_pct)
 
+    # ── Intelligence Methods ───────────────────────────────
+
+    def daily_focus(self, limit: int = 5) -> list[dict[str, Any]]:
+        """Get today's top-priority action items."""
+        from src.v3.workspace.intelligence import PriorityEngine
+        engine = PriorityEngine(self._memory, self._portfolio)
+        actions = engine.daily_focus(limit=limit)
+        return [_action_to_dict(a) for a in actions]
+
+    def attention_items(self) -> list[dict[str, Any]]:
+        """Get all workspace items ranked by attention score."""
+        from src.v3.workspace.intelligence import AttentionScorer
+        scorer = AttentionScorer(self._memory, self._portfolio)
+        items = scorer.attention_items()
+        return [
+            {
+                "item_id": s.item_id, "item_type": s.item_type,
+                "score": s.score, "factors": s.factors,
+            }
+            for s in items
+        ]
+
+    def thesis_health(self) -> list[dict[str, Any]]:
+        """Get health status for all active theses."""
+        from src.v3.workspace.intelligence import ThesisHealthChecker
+        checker = ThesisHealthChecker(self._memory, self._portfolio)
+        results = checker.check_all()
+        return [
+            {
+                "thesis_id": h.thesis_id, "status": h.status,
+                "days_since_created": h.days_since_created,
+                "has_evidence": h.has_evidence,
+                "has_review": h.has_review,
+                "recommendation": h.recommendation,
+            }
+            for h in results
+        ]
+
+
+# ═══════════════════════════════════════════════════════════════
+# Intelligence serialization
+# ═══════════════════════════════════════════════════════════════
+
+def _action_to_dict(a) -> dict[str, Any]:
+    return {
+        "action_id": a.action_id,
+        "level": a.level,
+        "category": a.category,
+        "title": a.title,
+        "description": a.description,
+        "source_type": a.source_type,
+        "source_id": a.source_id,
+        "priority_score": a.priority_score,
+        "days_stale": a.days_stale,
+    }
+
 
 # ═══════════════════════════════════════════════════════════════
 # Serialization helpers

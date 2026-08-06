@@ -236,3 +236,34 @@ def api_pending_reviews():
     if _is_htmx():
         return render_template("v3/partials/workspace_reviews.html", items=items)
     return jsonify(items)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Intelligence API
+# ═══════════════════════════════════════════════════════════════
+
+@v3_ws_bp.route("/api/workspace/intel/actions")
+@token_required
+def api_daily_focus():
+    """Get today's priority actions."""
+    svc = _get_service()
+    actions = svc.daily_focus(limit=5)
+    return jsonify(actions)
+
+
+@v3_ws_bp.route("/api/workspace/intel/attention")
+@token_required
+def api_attention_items():
+    """Get all items ranked by attention score."""
+    svc = _get_service()
+    items = svc.attention_items()
+    return jsonify(items)
+
+
+@v3_ws_bp.route("/api/workspace/intel/thesis-health")
+@token_required
+def api_thesis_health():
+    """Get health status for all active theses."""
+    svc = _get_service()
+    health = svc.thesis_health()
+    return jsonify(health)
