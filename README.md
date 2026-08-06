@@ -51,27 +51,44 @@ Complete: 7/7 stages passed
 
 ---
 
-## V3 Memory System Showcase 🧠
+## V3 — Investment Memory System 🧠
 
-> **NEW in V3** — Investment Memory System: track every thesis, decision, and lesson.
+> **Portfolio Showcase** — AI-Powered Personal Investment Research Operating System
+
+The problem: investors forget *why* they made decisions and never learn from mistakes.  
+The solution: a cognitive database that records every thesis, decision, and lesson — with built-in analytics.
 
 ```bash
-# Seed demo data (3 complete research cases)
-python scripts/seed_v3_memory.py --reset
-
-# Launch and explore
-python web_modern.py
-# → http://127.0.0.1:5000/journal
+python scripts/seed_v3_memory.py --reset   # 4 cases, 16 entries
+python web_modern.py                        # → http://127.0.0.1:5000/journal
 ```
 
-| Feature | Description |
-|---------|-------------|
-| **Memory Timeline** | 4 entry types: Notes, Theses, Decisions, Reflections |
-| **FTS5 Search** | Full-text search in Chinese and English |
-| **Confidence Calibration** | Track conviction vs. actual outcomes |
-| **3 Demo Cases** | NVIDIA (+41%), ZTE (+28%), Micron (-12%) |
+### What It Does
 
-**[→ V3 Memory Showcase](docs/V3_MEMORY_SHOWCASE.md)** | **[→ V3 Architecture](docs/V3_PRODUCT_ARCHITECTURE.md)**
+| Capability | Description |
+|------------|-------------|
+| 📝 **4-Type Memory** | Notes → Theses → Decisions → Reflections in one unified timeline |
+| 🔍 **FTS5 Search** | Instant full-text search in Chinese + English across all entries |
+| 📊 **Confidence Calibration** | Automatically analyzes conviction vs. actual outcomes — *do you know when you're right?* |
+| 🏷️ **Tag Performance** | Hit rate by investment theme — *where is your edge?* |
+| 🔄 **Closed Learning Loop** | Research → Predict → Act → Track → Learn → Repeat |
+| 🎨 **Bloomberg Dark UI** | Professional terminal aesthetic, HTMX + Alpine.js, zero page reloads |
+
+### Demo Cases
+
+| Case | Ticker | Thesis | Outcome |
+|------|--------|--------|---------|
+| AI Infrastructure | NVDA | AI compute beneficiary, target $1200 | ✅ +41% |
+| China AI Server | 000063 | AI second growth curve, target ¥36 | ✅ +28% |
+| Memory Cycle | MU | Cycle bottom opportunity, target $110 | ❌ -12% |
+| Semi Manufacturing | 688981 | Domestic chips core asset | ⏳ Pending |
+
+### Key Insight from Analytics
+
+> **High-confidence theses (>0.7): 100% hit rate. Medium-confidence (0.5-0.7): 0%.**
+> The system surfaced a clear rule: only trade conviction > 0.7.
+
+**[→ Full Case Study](docs/V3_MEMORY_SHOWCASE.md)** · **[→ Architecture](docs/V3_PRODUCT_ARCHITECTURE.md)** · **[→ Screenshots](docs/assets/v3_memory/)**
 
 ---
 

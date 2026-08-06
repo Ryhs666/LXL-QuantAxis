@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: RUF001 — Chinese fullwidth punctuation is intentional in content strings
 """Seed V3 Investment Memory System with realistic research cases.
 
 Three complete cases across all four memory types:
@@ -497,6 +498,64 @@ CASE_GENERAL = [
    Regardless of status, systematically review every thesis quarterly""",
         tags=["lesson", "投资原则", "复盘", "规则更新"],
     ),
+    MemoryEntry(
+        type="thesis",
+        ticker=["688981"],
+        title="中芯国际：中国大陆半导体制造核心资产",
+        content="""## 核心逻辑
+
+中芯国际是中国大陆唯一具备先进制程能力的晶圆代工厂。
+在美国制裁背景下，成熟制程国产替代加速，先进制程突破带来估值重估。
+
+## 催化剂
+
+1. 成熟制程产能利用率回升（Q2 已见底）
+2. 华为Mate系列回归带动国产芯片需求
+3. 国家大基金三期注资预期
+
+## 目标
+
+- 目标价：¥65 (当前 ¥52)
+- 时间框架：6-12 个月
+- 止损：¥44 (-15%)""",
+        thesis={
+            "catalysts": ["产能利用率回升", "华为回归", "大基金三期"],
+            "risks": ["制裁升级", "先进制程良率", "产能过剩"],
+            "timeline": "6-12 months",
+            "target_price": 65.0,
+        },
+        confidence=0.55,
+        status="pending",  # Still awaiting outcome — demonstrates pending review feature
+        tags=["A股", "semiconductor", "国产替代"],
+    ),
+    MemoryEntry(
+        type="note",
+        ticker=[],
+        title="Position Sizing Framework — Based on Memory Analytics",
+        content="""## Position Sizing Framework
+
+### Derived from system analytics (2025 Q3)
+
+Based on conviction calibration data:
+- High conviction (>0.7): hit rate 100% → **10-15%** position
+- Medium conviction (0.5-0.7): hit rate 0% → **paper trade only** (track but don't execute)
+- Low conviction (<0.5): N/A (no theses yet)
+
+### Kelly Criterion Sanity Check
+For thesis with 67% overall hit rate, avg win +34.5%, avg loss -12%:
+Kelly fraction = 0.67 - 0.33/(34.5/12) = 0.67 - 0.115 = **55.5%**
+→ Kelly says bet 55% — this is insane for a single stock
+→ Use fractional Kelly (1/4): **~14%** max position
+
+This aligns with the 10-15% rule derived from conviction calibration.
+
+### Implementation
+- Max single position: 15% (hard limit)
+- Max sector exposure: 40%
+- Cash reserve minimum: 10%
+- Rebalance quarterly or on 20% drift""",
+        tags=["methodology", "position_sizing", "risk_management"],
+    ),
 ]
 
 ALL_CASES = CASE_NVIDIA + CASE_ZTE + CASE_SEMICONDUCTOR + CASE_GENERAL
@@ -526,11 +585,11 @@ def seed(clear_first: bool = False) -> None:
         print(f"Database already has {existing} entries. Use --reset to clear first.")
         return
 
-    # Each entry's "days ago" for backdating
-    days_ago = [90, 85, 80, 20,  75, 70, 65, 15,  60, 55, 50, 10,  30, 5]
+    # Each entry's "days ago" for backdating (16 entries)
+    days_ago = [90, 85, 80, 20,  75, 70, 65, 15,  60, 55, 50, 10,  30, 5,  45, 25]
     ids = repo.save_many(ALL_CASES)
     backdate_created_at(repo, ids, days_ago)
-    print(f"Seeded {len(ids)} entries across {len(ALL_CASES)} records.\n")
+    print(f"Seeded {len(ids)} entries.\n")
 
     analytics = MemoryAnalytics(db)
     stats = analytics.get_stats()
@@ -541,15 +600,17 @@ def seed(clear_first: bool = False) -> None:
     print(f"  Theses:      {stats.theses}")
     print(f"  Decisions:   {stats.decisions}")
     print(f"  Reflections: {stats.reflections}")
-    print(f"  Thesis hit rate: {stats.thesis_hit_rate:.0%} ({stats.thesis_correct}/{stats.thesis_correct + stats.thesis_wrong})")
+    resolved = stats.thesis_correct + stats.thesis_wrong
+    print(f"  Thesis hit rate: {stats.thesis_hit_rate:.0%} ({stats.thesis_correct}/{resolved} resolved, {stats.thesis_pending} pending)")
     print(f"  Decision win rate: {stats.decision_win_rate:.0%}")
     print(f"  Avg confidence: {stats.avg_confidence:.1%}")
     print(f"  Streak: {stats.streak_days} days")
     print()
     print("Cases:")
-    print("  1. NVIDIA AI Infrastructure   (NVDA)   — thesis CORRECT, +41%")
-    print("  2. ZTE AI Server              (000063) — thesis CORRECT, +28%")
-    print("  3. Micron Semiconductor Cycle (MU)     — thesis WRONG, -12%")
+    print("  1. NVIDIA AI Infrastructure    (NVDA)   — thesis CORRECT, +41%")
+    print("  2. ZTE AI Server               (000063) — thesis CORRECT, +28%")
+    print("  3. Micron Semiconductor Cycle  (MU)     — thesis WRONG, -12%")
+    print("  4. SMIC Semiconductor Mfg      (688981) — thesis PENDING (awaiting review)")
     print()
     print("Run: python web_modern.py → /journal")
 
