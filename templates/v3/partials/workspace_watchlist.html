@@ -1,0 +1,12 @@
+<!-- HTMX Partial: Watchlist -->
+{% if items %}
+  {% for w in items %}
+  <div class="item-row priority-{{ w.priority }}">
+    <span class="item-ticker">{{ w.ticker | join(', ') }}</span>
+    <span class="item-title" title="{{ w.title }}">{{ w.title }}</span>
+    <span class="item-meta">{{ w.created_at[:10] if w.created_at else '--' }}</span>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty">Watchlist is empty. Add stocks you're tracking.</div>
+{% endif %}

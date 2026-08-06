@@ -1,0 +1,12 @@
+<!-- HTMX Partial: Pending Reviews -->
+{% if items %}
+  {% for r in items %}
+  <div class="item-row">
+    <span class="item-ticker">{{ r.ticker | join(', ') }}</span>
+    <span class="item-title" title="{{ r.title }}">{{ r.title }}</span>
+    <span class="item-meta">{{ r.days_since }}d ago</span>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty">No pending reviews. All theses are up to date.</div>
+{% endif %}

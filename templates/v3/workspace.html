@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Workspace · LXL·QuantAxis V3</title>
+<link rel="stylesheet" href="/static/css/terminal.css">
+<script defer src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js"></script>
+<style>
+:root {
+  --bg-root: #05070A; --bg-panel: #0B1220; --bg-elevated: #111D30;
+  --border: #1A2A44; --border-act: #2A4A74;
+  --text: #F8FAFC; --text-sec: #94A3B8; --text-muted: #475569;
+  --accent: #3B82F6; --gold: #C9A227; --green: #22C55E; --red: #EF4444; --orange: #F59E0B;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg-root); color:var(--text); font:400 13px/20px 'Inter',sans-serif; min-height:100vh; }
+/* Nav */
+.v3-nav { display:flex; align-items:center; height:44px; background:var(--bg-panel); border-bottom:1px solid var(--border); padding:0 20px; }
+.v3-nav-brand { font:600 14px/44px 'Inter',sans-serif; color:var(--text); padding-right:24px; border-right:1px solid var(--border); margin-right:8px; }
+.v3-nav a { font:400 12px/44px 'Inter',sans-serif; color:var(--text-sec); padding:0 16px; transition:color 120ms; text-decoration:none; }
+.v3-nav a:hover,.v3-nav a.active { color:var(--text); }
+.v3-nav a.active { border-bottom:2px solid var(--accent); margin-bottom:-1px; }
+.v3-nav-right { margin-left:auto; }
+/* Stat bar */
+.stat-bar { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; padding:24px; }
+.stat-card { background:var(--bg-panel); border:1px solid var(--border); padding:16px; }
+.stat-value { font:500 22px/28px 'JetBrains Mono',monospace; }
+.stat-label { font:500 10px/14px 'Inter',sans-serif; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; margin-top:4px; }
+/* Layout */
+.workspace-grid { display:grid; grid-template-columns:1fr 380px; gap:16px; padding:0 24px 24px; }
+.panel { background:var(--bg-panel); border:1px solid var(--border); padding:20px; margin-bottom:16px; }
+.panel-title { font:600 10px/16px 'Inter',sans-serif; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.panel-title .count { font:400 12px/18px 'JetBrains Mono',monospace; color:var(--text-sec); }
+.item-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid rgba(26,42,68,.4); font:400 12px/20px 'Inter',sans-serif; }
+.item-row:last-child { border-bottom:none; }
+.item-ticker { font:500 12px/20px 'JetBrains Mono',monospace; color:var(--accent); min-width:70px; }
+.item-title { flex:1; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.item-meta { font:400 10px/16px 'JetBrains Mono',monospace; color:var(--text-muted); white-space:nowrap; }
+.tag { font:400 9px/14px 'JetBrains Mono',monospace; padding:1px 6px; background:rgba(148,163,184,.08); color:var(--text-muted); }
+.priority-high { border-left:2px solid var(--red); padding-left:8px; }
+.priority-med  { border-left:2px solid var(--orange); padding-left:8px; }
+.priority-low  { border-left:2px solid var(--text-muted); padding-left:8px; }
+.badge { font:600 9px/14px 'Inter',sans-serif; padding:1px 6px; letter-spacing:.03em; }
+.badge-pending { color:var(--orange); background:rgba(245,158,11,.12); }
+.btn-sm { padding:4px 10px; font:500 10px/16px 'Inter',sans-serif; border:1px solid var(--border); background:transparent; color:var(--text-sec); cursor:pointer; transition:all 120ms; }
+.btn-sm:hover { border-color:var(--border-act); color:var(--text); }
+.empty { text-align:center; padding:24px; color:var(--text-muted); font:400 12px/18px 'Inter',sans-serif; }
+.empty a { color:var(--accent); }
+</style>
+</head>
+<body>
+
+<nav class="v3-nav">
+  <span class="v3-nav-brand">LXL·QuantAxis V3</span>
+  <a href="/workspace" class="active">Workspace</a>
+  <a href="/journal">Journal</a>
+  <a href="/pipeline">Pipeline</a>
+  <div class="v3-nav-right">
+    <span style="font:400 11px/44px 'JetBrains Mono',monospace;color:var(--text-muted);">{{ current_user.username if current_user else '--' }}</span>
+  </div>
+</nav>
+
+<!-- Stat Bar -->
+<div class="stat-bar" id="stat-bar" hx-get="/api/workspace/dashboard" hx-trigger="load" hx-swap="innerHTML">
+  <div class="stat-card"><div class="stat-value" style="color:var(--accent);">--</div><div class="stat-label">Active Theses</div></div>
+  <div class="stat-card"><div class="stat-value" style="color:var(--text);">--</div><div class="stat-label">Watchlist</div></div>
+  <div class="stat-card"><div class="stat-value" style="color:var(--gold);">--</div><div class="stat-label">Queue</div></div>
+  <div class="stat-card"><div class="stat-value" style="color:var(--orange);">--</div><div class="stat-label">Pending Reviews</div></div>
+  <div class="stat-card"><div class="stat-value" style="color:var(--green);">--</div><div class="stat-label">Portfolio</div></div>
+</div>
+
+<!-- Main Grid -->
+<div class="workspace-grid">
+  <!-- Left Column -->
+  <div>
+    <!-- Active Theses -->
+    <div class="panel">
+      <div class="panel-title">Active Theses <span class="count" id="thesis-count">--</span></div>
+      <div id="thesis-panel" hx-get="/api/workspace/theses" hx-trigger="load" hx-swap="innerHTML">
+        <div class="empty">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Watchlist -->
+    <div class="panel">
+      <div class="panel-title">Watchlist <span class="count" id="wl-count">--</span></div>
+      <div id="watchlist-panel" hx-get="/api/workspace/watchlist" hx-trigger="load" hx-swap="innerHTML">
+        <div class="empty">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Research Queue -->
+    <div class="panel">
+      <div class="panel-title">Research Queue <span class="count" id="q-count">--</span></div>
+      <div id="queue-panel" hx-get="/api/workspace/queue" hx-trigger="load" hx-swap="innerHTML">
+        <div class="empty">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column -->
+  <div>
+    <!-- Portfolio -->
+    <div class="panel">
+      <div class="panel-title">Portfolio Overview</div>
+      <div id="portfolio-panel" hx-get="/api/workspace/portfolio" hx-trigger="load" hx-swap="innerHTML">
+        <div class="empty">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Pending Reviews -->
+    <div class="panel">
+      <div class="panel-title">Pending Reviews</div>
+      <div id="reviews-panel" hx-get="/api/workspace/pending-reviews" hx-trigger="load" hx-swap="innerHTML">
+        <div class="empty">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

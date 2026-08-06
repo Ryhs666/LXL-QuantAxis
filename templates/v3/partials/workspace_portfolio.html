@@ -1,0 +1,15 @@
+<!-- HTMX Partial: Portfolio Overview -->
+{% if portfolio and portfolio.has_holdings %}
+  {% for pos in portfolio.positions %}
+  <div class="item-row">
+    <span class="item-ticker">{{ pos.symbol }}</span>
+    <span class="item-title">{{ pos.name }}</span>
+    <span class="item-meta">{{ pos.quantity }} shares</span>
+    {% if pos.thesis_status == 'pending' %}
+    <span class="badge badge-pending">pending</span>
+    {% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty">No open positions tracked in trades.db</div>
+{% endif %}

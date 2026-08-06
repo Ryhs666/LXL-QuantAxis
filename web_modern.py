@@ -74,6 +74,10 @@ app = Flask(__name__)
 from src.v3.web import register_v3_routes
 register_v3_routes(app)
 
+# V3 Workspace Blueprint
+from src.v3.workspace import v3_ws_bp
+app.register_blueprint(v3_ws_bp)
+
 # ═══════════════════════════════════════════════════════════
 # Flask-SocketIO 实时行情推送 (v5.5)
 # ═══════════════════════════════════════════════════════════

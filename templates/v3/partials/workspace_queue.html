@@ -1,0 +1,12 @@
+<!-- HTMX Partial: Research Queue -->
+{% if items %}
+  {% for q in items %}
+  <div class="item-row priority-{{ q.priority }}">
+    <span class="item-ticker">{{ q.ticker | join(', ') if q.ticker else '--' }}</span>
+    <span class="item-title" title="{{ q.title }}">{{ q.title }}</span>
+    <span class="item-meta">{{ q.created_at[:10] if q.created_at else '--' }}</span>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty">Queue is empty. Add research tasks to prioritize.</div>
+{% endif %}

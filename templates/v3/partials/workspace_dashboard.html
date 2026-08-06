@@ -1,0 +1,21 @@
+<!-- HTMX Partial: Dashboard Stat Bar -->
+<div class="stat-card">
+  <div class="stat-value" style="color:var(--accent);">{{ stats.active_theses }}</div>
+  <div class="stat-label">Active Theses</div>
+</div>
+<div class="stat-card">
+  <div class="stat-value" style="color:var(--text);">{{ stats.watchlist }}</div>
+  <div class="stat-label">Watchlist</div>
+</div>
+<div class="stat-card">
+  <div class="stat-value" style="color:var(--gold);">{{ stats.queue }}</div>
+  <div class="stat-label">Queue</div>
+</div>
+<div class="stat-card">
+  <div class="stat-value" style="color:var(--orange);">{{ stats.pending_reviews }}</div>
+  <div class="stat-label">Pending Reviews</div>
+</div>
+<div class="stat-card">
+  <div class="stat-value" style="color:var(--green);">{{ portfolio.position_count if portfolio else 0 }}</div>
+  <div class="stat-label">Portfolio</div>
+</div>
