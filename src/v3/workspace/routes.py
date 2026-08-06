@@ -260,23 +260,88 @@ def api_workspace_thesis_health():
 
 # ── Action State Management ──────────────────────────────────
 
+@v3_ws_bp.route("/api/workspace/actions/snooze", methods=["POST"])
+@token_required
+def api_action_snooze():
+    """Snooze an action until a specific date."""
+    data = request.get_json(silent=True) or {}
+    action_key = (data.get("action_key") or "").strip()
+    until = (data.get("until") or "").strip()
+    if not action_key:
+        return jsonify({"error": "action_key is required"}), 400
+    if not until:
+        return jsonify({"error": "until date is required"}), 400
+    svc = _get_service()
+    svc.snooze_action(
+        action_key,
+        rule_code=data.get("rule_code", ""),
+        object_type=data.get("object_type", ""),
+        object_id=data.get("object_id", ""),
+        ticker=data.get("ticker", ""),
+        until_date=until,
+    )
+    return jsonify({"message": "snoozed", "until": until})
+
+
+@v3_ws_bp.route("/api/workspace/actions/dismiss", methods=["POST"])
+@token_required
+def api_action_dismiss():
+    """Dismiss an action with cooldown."""
+    data = request.get_json(silent=True) or {}
+    action_key = (data.get("action_key") or "").strip()
+    if not action_key:
+        return jsonify({"error": "action_key is required"}), 400
+    svc = _get_service()
+    svc.dismiss_action(
+        action_key,
+        rule_code=data.get("rule_code", ""),
+        object_type=data.get("object_type", ""),
+        object_id=data.get("object_id", ""),
+        ticker=data.get("ticker", ""),
+        reason=data.get("reason", ""),
+    )
+    return jsonify({"message": "dismissed"})
+
+
+@v3_ws_bp.route("/api/workspace/actions/complete", methods=["POST"])
+@token_required
+def api_action_complete():
+    """Mark an action as completed."""
+    data = request.get_json(silent=True) or {}
+    action_key = (data.get("action_key") or "").strip()
+    if not action_key:
+        return jsonify({"error": "action_key is required"}), 400
+    svc = _get_service()
+    svc.complete_action(
+        action_key,
+        rule_code=data.get("rule_code", ""),
+        object_type=data.get("object_type", ""),
+        object_id=data.get("object_id", ""),
+        ticker=data.get("ticker", ""),
+        fingerprint=data.get("fingerprint", ""),
+    )
+    return jsonify({"message": "completed"})
+
+
+# ── Legacy path-based aliases (deprecated) ──────────────────
+
 @v3_ws_bp.route("/api/workspace/actions/<path:action_key>/snooze", methods=["POST"])
 @token_required
-def api_action_snooze(action_key):
-    """Snooze an action until a specific date."""
+def api_action_snooze_legacy(action_key):
+    """Legacy: snooze via URL path. Prefer POST /api/workspace/actions/snooze."""
     data = request.get_json(silent=True) or {}
     until = data.get("until", "")
     if not until:
         return jsonify({"error": "until date is required"}), 400
     svc = _get_service()
-    svc.snooze_action(action_key, until)
+    svc.snooze_action(action_key, until_date=until)
     return jsonify({"message": "snoozed", "until": until})
 
 
 @v3_ws_bp.route("/api/workspace/actions/<path:action_key>/dismiss", methods=["POST"])
 @token_required
-def api_action_dismiss(action_key):
-    """Dismiss an action with cooldown."""
+def api_action_dismiss_legacy(action_key):
+    """Legacy: dismiss via URL path. Prefer POST /api/workspace/actions/dismiss."""
     svc = _get_service()
     svc.dismiss_action(action_key)
     return jsonify({"message": "dismissed"})
@@ -284,8 +349,8 @@ def api_action_dismiss(action_key):
 
 @v3_ws_bp.route("/api/workspace/actions/<path:action_key>/complete", methods=["POST"])
 @token_required
-def api_action_complete(action_key):
-    """Mark an action as completed."""
+def api_action_complete_legacy(action_key):
+    """Legacy: complete via URL path. Prefer POST /api/workspace/actions/complete."""
     svc = _get_service()
     svc.complete_action(action_key)
     return jsonify({"message": "completed"})

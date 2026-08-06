@@ -128,25 +128,29 @@ class WorkspaceService:
     # ── Intelligence Methods ───────────────────────────────
 
     def daily_focus(self, limit: int | None = None) -> dict[str, Any]:
-        """Get today's priority actions with suppression applied."""
+        """Get today's priority actions with suppression + reactivation applied."""
         from src.v3.workspace.intelligence import ActionStateManager, PriorityEngine
 
         engine = PriorityEngine(self._memory, self._portfolio)
         all_actions = engine.generate()
         states = ActionStateManager()
 
-        # Apply suppression (snooze/dismiss/complete + cooldown)
         visible: list[dict[str, Any]] = []
         suppressed_count = 0
         for a in all_actions:
+            # Check suppression (snooze/dismiss cooldown)
             if states.is_suppressed(a.action_key):
                 suppressed_count += 1
                 continue
+
+            # Check reactivation for completed actions
+            if states.should_reactivate(a.action_key, a.rule_code, condition_exists=True):
+                pass  # Let it through — re-activate
+
             visible.append(_action_to_dict(a))
 
         visible = visible[:(limit or 5)]
 
-        # Severity counts
         sev = {"critical": 0, "warning": 0, "info": 0}
         for a in all_actions:
             sev[a.severity] = sev.get(a.severity, 0) + 1
@@ -160,17 +164,29 @@ class WorkspaceService:
             "actions": visible,
         }
 
-    def snooze_action(self, action_key: str, until_date: str) -> None:
+    def snooze_action(self, action_key: str, rule_code: str = "",
+                      object_type: str = "", object_id: str = "",
+                      ticker: str = "", until_date: str = "") -> None:
         from src.v3.workspace.intelligence import ActionStateManager
-        ActionStateManager().snooze(action_key, until_date)
+        ActionStateManager().snooze(
+            action_key, rule_code, object_type, object_id, ticker, until_date,
+        )
 
-    def dismiss_action(self, action_key: str) -> None:
+    def dismiss_action(self, action_key: str, rule_code: str = "",
+                       object_type: str = "", object_id: str = "",
+                       ticker: str = "", reason: str = "") -> None:
         from src.v3.workspace.intelligence import ActionStateManager
-        ActionStateManager().dismiss(action_key)
+        ActionStateManager().dismiss(
+            action_key, rule_code, object_type, object_id, ticker, reason,
+        )
 
-    def complete_action(self, action_key: str) -> None:
+    def complete_action(self, action_key: str, rule_code: str = "",
+                        object_type: str = "", object_id: str = "",
+                        ticker: str = "", fingerprint: str = "") -> None:
         from src.v3.workspace.intelligence import ActionStateManager
-        ActionStateManager().complete(action_key)
+        ActionStateManager().complete(
+            action_key, rule_code, object_type, object_id, ticker, fingerprint,
+        )
 
     def thesis_health(self) -> list[dict[str, Any]]:
         """Get multi-dimensional health for all active theses."""

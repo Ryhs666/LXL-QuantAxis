@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from src.v3.memory.repository import MemoryRepository
 from src.v3.workspace.repository import (
     ActiveThesis,
     MemoryAdapter,
@@ -569,10 +568,14 @@ class PriorityEngine:
             thesis_risk = int((1.0 - conf) * 25)
             score = min(100, exposure + thesis_risk)
 
+            # Severity: severe mismatch (weight >25% or 3x conviction ratio) → CRITICAL
+            is_severe = weight > 0.25 or (weight / max(conf, 0.01)) > 3.0
+            severity = "critical" if is_severe else ("warning" if score < 50 else _severity(score))
+
             candidates.append(ActionCandidate(
                 action_key=ActionCandidate.make_key("R10_CONVICTION_MISMATCH", "position", _pos_hash(pos.symbol)),
                 rule_code="R10_POSITION_CONVICTION_MISMATCH",
-                severity=_severity(score),
+                severity=severity,
                 priority_score=score,
                 score_breakdown=ScoreBreakdown(exposure=exposure, thesis_risk=thesis_risk),
                 ticker=pos.symbol,
@@ -665,110 +668,14 @@ class ThesisHealthChecker:
 
 
 # ═══════════════════════════════════════════════════════════════
-# Action State Persistence
+# Action State — re-exported from dedicated action_store module
 # ═══════════════════════════════════════════════════════════════
 
-class ActionStateManager:
-    """Persists snooze/dismiss/complete states for action candidates.
-
-    Uses memory_entries with type='note', tags=['action_state'].
-    Zero new tables. Each state entry maps action_key → user state.
-
-    State machine:
-      active → snoozed (until date) → active (after date)
-      active → dismissed (cooldown days) → active (after cooldown)
-      active → completed → re-activated (if conditions recur after 30d)
-    """
-
-    STATE_TAG = "action_state"
-
-    def __init__(self) -> None:
-        self._repo = MemoryRepository()
-
-    def get_state(self, action_key: str) -> dict[str, Any] | None:
-        """Get the current state for an action_key. Returns None if never acted on."""
-        from src.v3.memory.search import MemorySearch, SearchFilters
-        searcher = MemorySearch(self._repo._db)
-        entries = searcher.query(SearchFilters(
-            entry_type="note", tags=[self.STATE_TAG],
-        ))
-        for e in entries:
-            if e.title == action_key:
-                return {
-                    "state": (e.content or "").strip(),
-                    "updated_at": e.updated_at or e.created_at,
-                }
-        return None
-
-    def set_state(self, action_key: str, state: str) -> None:
-        """Set or update the state for an action_key."""
-        from src.v3.memory.models import MemoryEntry
-        from src.v3.memory.search import MemorySearch, SearchFilters
-
-        searcher = MemorySearch(self._repo._db)
-        existing = searcher.query(SearchFilters(
-            entry_type="note", tags=[self.STATE_TAG],
-        ))
-
-        for e in existing:
-            if e.title == action_key:
-                # Update existing
-                updated = MemoryEntry(
-                    id=e.id, type="note", ticker=[], title=action_key,
-                    content=state, tags=[self.STATE_TAG],
-                    created_at=e.created_at,
-                )
-                self._repo.update(e.id, updated)
-                return
-
-        # Create new
-        entry = MemoryEntry(
-            type="note", title=action_key, content=state,
-            tags=[self.STATE_TAG],
-        )
-        self._repo.save(entry)
-
-    def is_suppressed(self, action_key: str, cooldown_days: int = 7) -> bool:
-        """Check if an action should be suppressed (snoozed or in cooldown)."""
-        st = self.get_state(action_key)
-        if not st:
-            return False
-
-        state = st["state"]
-        updated = st["updated_at"]
-
-        if state == "completed":
-            # Re-activate if completed > 30 days ago and conditions recur
-            days = _days_since(updated)
-            return days < 30
-
-        if state.startswith("snoozed:"):
-            try:
-                until = state.split(":", 1)[1]
-                until_dt = datetime.fromisoformat(until)
-                if datetime.now() < until_dt:
-                    return True  # Still snoozed
-            except (ValueError, IndexError):
-                pass
-
-        if state.startswith("dismissed:"):
-            days = _days_since(updated)
-            return days < cooldown_days  # Still in cooldown
-
-        return False
-
-    def snooze(self, action_key: str, until_date: str) -> None:
-        """Snooze until a specific date."""
-        self.set_state(action_key, f"snoozed:{until_date}")
-
-    def dismiss(self, action_key: str) -> None:
-        """Dismiss with cooldown."""
-        self.set_state(action_key, f"dismissed:{_now()}")
-
-    def complete(self, action_key: str) -> None:
-        """Mark as completed."""
-        self.set_state(action_key, "completed")
-
+from src.v3.workspace.action_store import (  # noqa: E402, F401
+    ActionStateManager,
+    ActionStateRepository,
+    ReactivationPolicy,
+)
 
 # ═══════════════════════════════════════════════════════════════
 # Helpers
