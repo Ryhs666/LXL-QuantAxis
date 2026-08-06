@@ -127,58 +127,99 @@ class WorkspaceService:
 
     # ── Intelligence Methods ───────────────────────────────
 
-    def daily_focus(self, limit: int = 5) -> list[dict[str, Any]]:
-        """Get today's top-priority action items."""
-        from src.v3.workspace.intelligence import PriorityEngine
-        engine = PriorityEngine(self._memory, self._portfolio)
-        actions = engine.daily_focus(limit=limit)
-        return [_action_to_dict(a) for a in actions]
+    def daily_focus(self, limit: int | None = None) -> dict[str, Any]:
+        """Get today's priority actions with suppression applied."""
+        from src.v3.workspace.intelligence import ActionStateManager, PriorityEngine
 
-    def attention_items(self) -> list[dict[str, Any]]:
-        """Get all workspace items ranked by attention score."""
-        from src.v3.workspace.intelligence import AttentionScorer
-        scorer = AttentionScorer(self._memory, self._portfolio)
-        items = scorer.attention_items()
-        return [
-            {
-                "item_id": s.item_id, "item_type": s.item_type,
-                "score": s.score, "factors": s.factors,
-            }
-            for s in items
-        ]
+        engine = PriorityEngine(self._memory, self._portfolio)
+        all_actions = engine.generate()
+        states = ActionStateManager()
+
+        # Apply suppression (snooze/dismiss/complete + cooldown)
+        visible: list[dict[str, Any]] = []
+        suppressed_count = 0
+        for a in all_actions:
+            if states.is_suppressed(a.action_key):
+                suppressed_count += 1
+                continue
+            visible.append(_action_to_dict(a))
+
+        visible = visible[:(limit or 5)]
+
+        # Severity counts
+        sev = {"critical": 0, "warning": 0, "info": 0}
+        for a in all_actions:
+            sev[a.severity] = sev.get(a.severity, 0) + 1
+
+        return {
+            "generated_at": _now(),
+            "total": len(all_actions),
+            "visible_count": len(visible),
+            "suppressed_count": suppressed_count,
+            "severity_counts": sev,
+            "actions": visible,
+        }
+
+    def snooze_action(self, action_key: str, until_date: str) -> None:
+        from src.v3.workspace.intelligence import ActionStateManager
+        ActionStateManager().snooze(action_key, until_date)
+
+    def dismiss_action(self, action_key: str) -> None:
+        from src.v3.workspace.intelligence import ActionStateManager
+        ActionStateManager().dismiss(action_key)
+
+    def complete_action(self, action_key: str) -> None:
+        from src.v3.workspace.intelligence import ActionStateManager
+        ActionStateManager().complete(action_key)
 
     def thesis_health(self) -> list[dict[str, Any]]:
-        """Get health status for all active theses."""
+        """Get multi-dimensional health for all active theses."""
         from src.v3.workspace.intelligence import ThesisHealthChecker
         checker = ThesisHealthChecker(self._memory, self._portfolio)
-        results = checker.check_all()
         return [
             {
-                "thesis_id": h.thesis_id, "status": h.status,
-                "days_since_created": h.days_since_created,
-                "has_evidence": h.has_evidence,
-                "has_review": h.has_review,
-                "recommendation": h.recommendation,
+                "thesis_id": h.thesis_id,
+                "ticker": h.ticker,
+                "freshness_status": h.freshness_status,
+                "freshness_days": h.freshness_days,
+                "risk_flags": h.risk_flags,
+                "health_reasons": h.health_reasons,
             }
-            for h in results
+            for h in checker.check_all()
         ]
 
 
 # ═══════════════════════════════════════════════════════════════
-# Intelligence serialization
+# Serialization
 # ═══════════════════════════════════════════════════════════════
+
+def _now() -> str:
+    from datetime import datetime
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 
 def _action_to_dict(a) -> dict[str, Any]:
     return {
-        "action_id": a.action_id,
-        "level": a.level,
-        "category": a.category,
-        "title": a.title,
-        "description": a.description,
-        "source_type": a.source_type,
-        "source_id": a.source_id,
+        "action_key": a.action_key,
+        "rule_code": a.rule_code,
+        "severity": a.severity,
         "priority_score": a.priority_score,
-        "days_stale": a.days_stale,
+        "score_breakdown": {
+            "urgency": a.score_breakdown.urgency,
+            "exposure": a.score_breakdown.exposure,
+            "thesis_risk": a.score_breakdown.thesis_risk,
+            "overdue": a.score_breakdown.overdue,
+            "evidence_conflict": a.score_breakdown.evidence_conflict,
+        },
+        "ticker": a.ticker,
+        "title": a.title,
+        "reason_text": a.reason_text,
+        "reason_codes": a.reason_codes,
+        "recommended_action": a.recommended_action,
+        "linked_entry_ids": a.linked_entry_ids,
+        "linked_thesis_id": a.linked_thesis_id,
+        "linked_position": a.linked_position,
+        "generated_at": a.generated_at,
     }
 
 

@@ -239,31 +239,69 @@ def api_pending_reviews():
 
 
 # ═══════════════════════════════════════════════════════════════
-# Intelligence API
+# Intelligence API (hardened)
 # ═══════════════════════════════════════════════════════════════
+
+@v3_ws_bp.route("/api/workspace/actions")
+@token_required
+def api_workspace_actions():
+    """Get today's priority actions with suppression applied."""
+    svc = _get_service()
+    return jsonify(svc.daily_focus())
+
+
+@v3_ws_bp.route("/api/workspace/thesis-health")
+@token_required
+def api_workspace_thesis_health():
+    """Get multi-dimensional health for all active theses."""
+    svc = _get_service()
+    return jsonify(svc.thesis_health())
+
+
+# ── Action State Management ──────────────────────────────────
+
+@v3_ws_bp.route("/api/workspace/actions/<path:action_key>/snooze", methods=["POST"])
+@token_required
+def api_action_snooze(action_key):
+    """Snooze an action until a specific date."""
+    data = request.get_json(silent=True) or {}
+    until = data.get("until", "")
+    if not until:
+        return jsonify({"error": "until date is required"}), 400
+    svc = _get_service()
+    svc.snooze_action(action_key, until)
+    return jsonify({"message": "snoozed", "until": until})
+
+
+@v3_ws_bp.route("/api/workspace/actions/<path:action_key>/dismiss", methods=["POST"])
+@token_required
+def api_action_dismiss(action_key):
+    """Dismiss an action with cooldown."""
+    svc = _get_service()
+    svc.dismiss_action(action_key)
+    return jsonify({"message": "dismissed"})
+
+
+@v3_ws_bp.route("/api/workspace/actions/<path:action_key>/complete", methods=["POST"])
+@token_required
+def api_action_complete(action_key):
+    """Mark an action as completed."""
+    svc = _get_service()
+    svc.complete_action(action_key)
+    return jsonify({"message": "completed"})
+
+
+# ── Legacy compatibility aliases ─────────────────────────────
 
 @v3_ws_bp.route("/api/workspace/intel/actions")
 @token_required
-def api_daily_focus():
-    """Get today's priority actions."""
-    svc = _get_service()
-    actions = svc.daily_focus(limit=5)
-    return jsonify(actions)
-
-
-@v3_ws_bp.route("/api/workspace/intel/attention")
-@token_required
-def api_attention_items():
-    """Get all items ranked by attention score."""
-    svc = _get_service()
-    items = svc.attention_items()
-    return jsonify(items)
+def api_daily_focus_legacy():
+    """Legacy alias → /api/workspace/actions."""
+    return api_workspace_actions()
 
 
 @v3_ws_bp.route("/api/workspace/intel/thesis-health")
 @token_required
-def api_thesis_health():
-    """Get health status for all active theses."""
-    svc = _get_service()
-    health = svc.thesis_health()
-    return jsonify(health)
+def api_thesis_health_legacy():
+    """Legacy alias → /api/workspace/thesis-health."""
+    return api_workspace_thesis_health()
