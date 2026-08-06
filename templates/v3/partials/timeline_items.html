@@ -1,0 +1,39 @@
+<!-- HTMX Partial: Timeline Items -->
+{% from 'v3/partials/macros.html' import fmt_date, entry_icon with context %}
+
+{% if entries %}
+  {% for entry in entries %}
+  <div class="timeline-item"
+       @click="editEntry({{ entry | tojson | safe }})"
+       hx-get="/api/memory/{{ entry.id }}/related"
+       hx-trigger="mouseenter once"
+       hx-swap="none">
+    <div class="tl-dot tl-dot-{{ entry.type }}"></div>
+    <div class="tl-body">
+      <div class="tl-header">
+        <span class="tl-type tl-type-{{ entry.type }}">{{ entry.type }}</span>
+        <span class="tl-title">{{ entry.title }}</span>
+        <span class="tl-meta">{{ fmt_date(entry.created_at) }}</span>
+      </div>
+      <div class="tl-excerpt">{{ entry.content | striptags | truncate(120) }}</div>
+      <div class="tl-tags">
+        {% if entry.status %}
+        <span class="badge badge-{{ entry.status }}">{{ entry.status }}</span>
+        {% endif %}
+        {% for tag in (entry.tags or [])[:4] %}
+        <span class="tl-tag">{{ tag }}</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  <div style="padding:8px 16px;color:var(--text-muted);font:400 10px/16px 'JetBrains Mono',monospace;">
+    {{ total }} entries
+  </div>
+{% else %}
+  <div class="empty-state">
+    <div class="empty-icon">{% if request.args.get('keyword') %}🔍{% else %}📭{% endif %}</div>
+    <div class="empty-title">{% if request.args.get('keyword') %}No results for "{{ request.args.get('keyword') }}"{% else %}No memories yet{% endif %}</div>
+    <div class="empty-desc">{% if not request.args.get('keyword') %}Create your first investment thesis, decision record, or research note.{% else %}Try a different search term or clear filters.{% endif %}</div>
+  </div>
+{% endif %}

@@ -1,0 +1,22 @@
+<!-- HTMX Partial: Stat Bar -->
+{% from 'v3/partials/macros.html' import fmt_pct, fmt_count with context %}
+<div class="stat-card">
+  <div class="stat-value stat-blue">{{ stats.total_entries }}</div>
+  <div class="stat-label">Total Memories</div>
+</div>
+<div class="stat-card">
+  <div class="stat-value {{ 'stat-green' if stats.thesis_hit_rate >= 0.5 else 'stat-orange' }}">{{ fmt_pct(stats.thesis_hit_rate) }}</div>
+  <div class="stat-label">Thesis Hit Rate</div>
+</div>
+<div class="stat-card">
+  <div class="stat-value stat-gold">{{ fmt_pct(stats.avg_confidence) }}</div>
+  <div class="stat-label">Avg Confidence</div>
+</div>
+<div class="stat-card">
+  <div class="stat-value stat-orange">{{ stats.thesis_pending }}</div>
+  <div class="stat-label">Pending Reviews</div>
+</div>
+<div class="stat-card">
+  <div class="stat-value stat-green">{{ stats.streak_days }}</div>
+  <div class="stat-label">Streak Days</div>
+</div>

@@ -1,0 +1,54 @@
+<!-- HTMX Partial: Analytics Sidebar -->
+{% from 'v3/partials/macros.html' import fmt_pct with context %}
+
+<div class="side-section">
+  <div class="side-title">Memory Breakdown</div>
+  <div class="side-stat"><span class="side-stat-label">Notes</span><span class="side-stat-value">{{ stats.notes }}</span></div>
+  <div class="side-stat"><span class="side-stat-label">Theses</span><span class="side-stat-value">{{ stats.theses }}</span></div>
+  <div class="side-stat"><span class="side-stat-label">Decisions</span><span class="side-stat-value">{{ stats.decisions }}</span></div>
+  <div class="side-stat"><span class="side-stat-label">Reflections</span><span class="side-stat-value">{{ stats.reflections }}</span></div>
+</div>
+
+<div class="side-section">
+  <div class="side-title">Thesis Quality</div>
+  <div class="side-stat"><span class="side-stat-label">Hit Rate</span><span class="side-stat-value">{{ fmt_pct(stats.thesis_hit_rate) }}</span></div>
+  <div class="side-stat"><span class="side-stat-label">Correct</span><span class="side-stat-value" style="color:var(--green);">{{ stats.thesis_correct }}</span></div>
+  <div class="side-stat"><span class="side-stat-label">Wrong</span><span class="side-stat-value" style="color:var(--red);">{{ stats.thesis_wrong }}</span></div>
+  <div class="side-stat"><span class="side-stat-label">Pending</span><span class="side-stat-value" style="color:var(--orange);">{{ stats.thesis_pending }}</span></div>
+</div>
+
+<div class="side-section">
+  <div class="side-title">Decision Quality</div>
+  <div class="side-stat"><span class="side-stat-label">Win Rate</span><span class="side-stat-value">{{ fmt_pct(stats.decision_win_rate) }}</span></div>
+  <div class="side-stat"><span class="side-stat-label">Good</span><span class="side-stat-value" style="color:var(--green);">{{ stats.decision_good }}</span></div>
+  <div class="side-stat"><span class="side-stat-label">Bad</span><span class="side-stat-value" style="color:var(--red);">{{ stats.decision_bad }}</span></div>
+</div>
+
+{% if calibration and calibration.buckets %}
+<div class="side-section">
+  <div class="side-title">Confidence Calibration</div>
+  {% for bucket in calibration.buckets %}
+  <div style="margin-bottom:8px;">
+    <div class="side-stat">
+      <span class="side-stat-label">{{ bucket.label }}</span>
+      <span class="side-stat-value">{{ fmt_pct(bucket.hit_rate) }} <span style="font-size:9px;color:var(--text-muted);">({{ bucket.total }})</span></span>
+    </div>
+    <div class="calibration-bar">
+      <div class="calibration-fill {{ 'calibration-fill-high' if bucket.min_conf > 0.7 else 'calibration-fill-mid' if bucket.min_conf >= 0.5 else 'calibration-fill-low' }}" style="width:{{ (bucket.hit_rate * 100) | int }}%;"></div>
+    </div>
+  </div>
+  {% endfor %}
+  <div class="insight-box" style="margin-top:10px;">{{ calibration.insight }}</div>
+</div>
+{% endif %}
+
+{% if stats.top_tags %}
+<div class="side-section">
+  <div class="side-title">Top Tags</div>
+  <div class="tag-cloud">
+    {% for tag in stats.top_tags[:8] %}
+    <span class="tag-chip">{{ tag.tag }}&nbsp;<span style="color:var(--text-muted);">{{ tag.count }}</span></span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

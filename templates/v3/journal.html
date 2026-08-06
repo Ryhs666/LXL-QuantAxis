@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Investment Memory · LXL·QuantAxis V3</title>
+<link rel="stylesheet" href="/static/css/terminal.css">
+<script defer src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<style>
+/* ── V3 Journal: Bloomberg Terminal Style ────────────────── */
+:root {
+  --bg-root:    #05070A;
+  --bg-panel:   #0B1220;
+  --bg-elevated:#111D30;
+  --border:     #1A2A44;
+  --border-act: #2A4A74;
+  --text:       #F8FAFC;
+  --text-sec:   #94A3B8;
+  --text-muted: #475569;
+  --accent:     #3B82F6;
+  --gold:       #C9A227;
+  --green:      #22C55E;
+  --red:        #EF4444;
+  --orange:     #F59E0B;
+  --purple:     #A855F7;
+}
+
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg-root); color:var(--text); font:400 13px/20px 'Inter',sans-serif; min-height:100vh; }
+a { color:var(--accent); text-decoration:none; }
+
+/* ── Nav ────────────────────────────────────────────────── */
+.v3-nav { display:flex; align-items:center; gap:0; height:44px; background:var(--bg-panel); border-bottom:1px solid var(--border); padding:0 20px; }
+.v3-nav-brand { font:600 14px/44px 'Inter',sans-serif; color:var(--text); padding-right:24px; border-right:1px solid var(--border); margin-right:8px; }
+.v3-nav a { font:400 12px/44px 'Inter',sans-serif; color:var(--text-sec); padding:0 16px; transition:color 120ms; }
+.v3-nav a:hover,.v3-nav a.active { color:var(--text); }
+.v3-nav a.active { border-bottom:2px solid var(--accent); margin-bottom:-1px; }
+.v3-nav-right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+.v3-nav-user { font:400 11px/44px 'JetBrains Mono',monospace; color:var(--text-muted); }
+
+/* ── Layout ──────────────────────────────────────────────── */
+.journal-shell { display:grid; grid-template-columns:1fr 320px; height:calc(100vh - 44px); overflow:hidden; }
+.journal-main { overflow-y:auto; padding:24px; }
+.journal-sidebar { background:var(--bg-panel); border-left:1px solid var(--border); overflow-y:auto; padding:20px; }
+
+/* ── Stat bar ────────────────────────────────────────────── */
+.stat-bar { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:24px; }
+.stat-card { background:var(--bg-panel); border:1px solid var(--border); padding:16px; transition:border-color 120ms; }
+.stat-card:hover { border-color:var(--border-act); }
+.stat-value { font:500 22px/28px 'JetBrains Mono',monospace; color:var(--text); }
+.stat-label { font:500 10px/14px 'Inter',sans-serif; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; margin-top:4px; }
+.stat-green { color:var(--green); }
+.stat-gold { color:var(--gold); }
+.stat-blue { color:var(--accent); }
+.stat-orange { color:var(--orange); }
+
+/* ── Search bar ──────────────────────────────────────────── */
+.search-bar { display:flex; gap:8px; margin-bottom:16px; }
+.search-input { flex:1; background:var(--bg-panel); border:1px solid var(--border); color:var(--text); padding:10px 14px; font:400 13px/20px 'JetBrains Mono',monospace; outline:none; transition:border-color 120ms; }
+.search-input:focus { border-color:var(--accent); }
+.search-input::placeholder { color:var(--text-muted); }
+.filter-row { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+.filter-select { background:var(--bg-panel); border:1px solid var(--border); color:var(--text-sec); padding:6px 12px; font:400 11px/18px 'Inter',sans-serif; outline:none; cursor:pointer; transition:border-color 120ms; }
+.filter-select:focus { border-color:var(--accent); }
+.btn { padding:8px 16px; font:500 11px/18px 'Inter',sans-serif; border:none; cursor:pointer; letter-spacing:.02em; transition:all 120ms; }
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover { filter:brightness(1.15); }
+.btn-ghost { background:transparent; color:var(--text-sec); border:1px solid var(--border); }
+.btn-ghost:hover { border-color:var(--border-act); color:var(--text); }
+.btn-danger { background:transparent; color:var(--red); border:1px solid var(--red); font-size:10px; padding:4px 10px; }
+.btn-danger:hover { background:var(--red); color:#fff; }
+
+/* ── Timeline ────────────────────────────────────────────── */
+.timeline { display:flex; flex-direction:column; gap:2px; }
+.timeline-item { display:flex; gap:12px; padding:12px 16px; background:var(--bg-panel); border:1px solid transparent; cursor:pointer; transition:all 120ms; align-items:flex-start; }
+.timeline-item:hover { border-color:var(--border-act); background:var(--bg-elevated); }
+.tl-dot { width:10px; height:10px; border-radius:50%; margin-top:5px; flex-shrink:0; }
+.tl-dot-thesis { background:var(--accent); }
+.tl-dot-decision { background:var(--gold); }
+.tl-dot-note { background:var(--text-muted); }
+.tl-dot-reflection { background:var(--purple); }
+.tl-body { flex:1; min-width:0; }
+.tl-header { display:flex; align-items:center; gap:8px; margin-bottom:2px; }
+.tl-type { font:600 9px/14px 'Inter',sans-serif; text-transform:uppercase; letter-spacing:.05em; padding:1px 6px; }
+.tl-type-thesis { color:var(--accent); background:rgba(59,130,246,.12); }
+.tl-type-decision { color:var(--gold); background:rgba(201,162,39,.12); }
+.tl-type-note { color:var(--text-muted); background:rgba(71,85,105,.12); }
+.tl-type-reflection { color:var(--purple); background:rgba(168,85,247,.12); }
+.tl-title { font:600 13px/20px 'Inter',sans-serif; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tl-meta { font:400 10px/16px 'JetBrains Mono',monospace; color:var(--text-muted); margin-left:auto; flex-shrink:0; }
+.tl-excerpt { font:400 11px/18px 'Inter',sans-serif; color:var(--text-sec); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-bottom:4px; }
+.tl-tags { display:flex; gap:4px; flex-wrap:wrap; }
+.tl-tag { font:400 9px/14px 'JetBrains Mono',monospace; color:var(--text-muted); background:rgba(148,163,184,.08); padding:0 6px; }
+
+/* ── Status badges ───────────────────────────────────────── */
+.badge { font:600 9px/14px 'Inter',sans-serif; padding:1px 6px; letter-spacing:.03em; text-transform:uppercase; }
+.badge-pending { color:var(--orange); background:rgba(245,158,11,.12); }
+.badge-correct { color:var(--green); background:rgba(34,197,94,.12); }
+.badge-wrong { color:var(--red); background:rgba(239,68,68,.12); }
+.badge-good { color:var(--green); background:rgba(34,197,94,.12); }
+.badge-bad { color:var(--red); background:rgba(239,68,68,.12); }
+
+/* ── Modal ───────────────────────────────────────────────── */
+.modal-overlay { position:fixed; inset:0; background:rgba(5,7,10,.85); z-index:100; display:flex; align-items:center; justify-content:center; }
+.modal-panel { background:var(--bg-panel); border:1px solid var(--border-act); width:680px; max-height:85vh; overflow-y:auto; padding:28px; }
+.modal-title { font:600 18px/26px 'Inter',sans-serif; color:var(--text); margin-bottom:20px; }
+.modal-close { position:absolute; top:12px; right:16px; background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer; }
+.form-group { margin-bottom:14px; }
+.form-label { display:block; font:600 10px/16px 'Inter',sans-serif; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+.form-input,.form-textarea,.form-select { width:100%; background:var(--bg-root); border:1px solid var(--border); color:var(--text); padding:8px 12px; font:400 13px/20px 'JetBrains Mono',monospace; outline:none; }
+.form-input:focus,.form-textarea:focus { border-color:var(--accent); }
+.form-textarea { min-height:120px; resize:vertical; font:400 13px/20px 'Inter',sans-serif; }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+/* ── Sidebar ──────────────────────────────────────────────── */
+.side-section { margin-bottom:24px; }
+.side-title { font:600 10px/16px 'Inter',sans-serif; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--border); }
+.side-stat { display:flex; justify-content:space-between; padding:4px 0; font:400 12px/20px 'JetBrains Mono',monospace; }
+.side-stat-label { color:var(--text-sec); }
+.side-stat-value { color:var(--text); }
+.calibration-bar { height:4px; background:var(--border); margin:6px 0; border-radius:2px; overflow:hidden; }
+.calibration-fill { height:4px; border-radius:2px; }
+.calibration-fill-high { background:var(--accent); }
+.calibration-fill-mid { background:var(--orange); }
+.calibration-fill-low { background:var(--text-muted); }
+.insight-box { background:var(--bg-root); border:1px solid var(--border); padding:10px 12px; font:400 11px/17px 'Inter',sans-serif; color:var(--text-sec); }
+.tag-cloud { display:flex; flex-wrap:wrap; gap:4px; }
+.tag-chip { font:400 10px/16px 'JetBrains Mono',monospace; color:var(--text-sec); background:rgba(148,163,184,.06); padding:2px 8px; border:1px solid var(--border); }
+
+/* ── Empty state ─────────────────────────────────────────── */
+.empty-state { text-align:center; padding:60px 20px; }
+.empty-icon { font-size:36px; margin-bottom:12px; }
+.empty-title { font:600 14px/22px 'Inter',sans-serif; color:var(--text-sec); margin-bottom:6px; }
+.empty-desc { font:400 12px/18px 'Inter',sans-serif; color:var(--text-muted); max-width:360px; margin:0 auto; }
+
+/* ── HTMX indicators ─────────────────────────────────────── */
+.htmx-indicator { opacity:0; transition:opacity 200ms; }
+.htmx-request .htmx-indicator { opacity:1; }
+.htmx-request.htmx-indicator { opacity:1; }
+.loading-spinner { text-align:center; padding:40px; color:var(--text-muted); font:400 12px/20px 'JetBrains Mono',monospace; }
+</style>
+</head>
+<body x-data="journalState()">
+
+<!-- ═══ Navigation ═══ -->
+<nav class="v3-nav">
+  <span class="v3-nav-brand">LXL·QuantAxis V3</span>
+  <a href="/workspace">Workspace</a>
+  <a href="/journal" class="active">Journal</a>
+  <a href="/pipeline">Pipeline</a>
+  <div class="v3-nav-right">
+    <span class="v3-nav-user">{{ current_user.username if current_user else '--' }}</span>
+  </div>
+</nav>
+
+<!-- ═══ Shell ═══ -->
+<div class="journal-shell">
+
+<!-- ═══ Main Column ═══ -->
+<main class="journal-main">
+
+  <!-- ── Stats Bar ── -->
+  <div class="stat-bar" hx-get="/api/memory/analytics" hx-trigger="load, every 60s" hx-swap="innerHTML">
+    <div class="stat-card">
+      <div class="stat-value stat-blue">--</div>
+      <div class="stat-label">Total Memories</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="hit-rate-val">--</div>
+      <div class="stat-label">Thesis Hit Rate</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value stat-gold">--</div>
+      <div class="stat-label">Avg Confidence</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value stat-orange" id="pending-val">--</div>
+      <div class="stat-label">Pending Reviews</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value stat-green">--</div>
+      <div class="stat-label">Streak Days</div>
+    </div>
+  </div>
+
+  <!-- ── Search + Filters ── -->
+  <div class="search-bar">
+    <input type="text" class="search-input" placeholder="Search memory... (e.g. baijiu, 白酒, 000858)"
+           name="keyword" x-model="filters.keyword"
+           hx-get="/api/memory/list"
+           hx-trigger="keyup changed delay:300ms"
+           hx-target="#timeline-container"
+           hx-include="[name=type_filter],[name=ticker_filter]"
+           hx-indicator="#timeline-loading">
+    <button class="btn btn-primary" @click="openModal('thesis')">+ New Thesis</button>
+    <button class="btn btn-ghost" @click="openModal('note')">+ Note</button>
+  </div>
+
+  <div class="filter-row">
+    <select class="filter-select" name="type_filter"
+            hx-get="/api/memory/list" hx-trigger="change"
+            hx-target="#timeline-container" hx-include="[name=keyword],[name=ticker_filter]">
+      <option value="">All Types</option>
+      <option value="thesis">Thesis</option>
+      <option value="decision">Decision</option>
+      <option value="note">Note</option>
+      <option value="reflection">Reflection</option>
+    </select>
+    <input type="text" class="filter-select" name="ticker_filter" placeholder="Ticker (e.g. 000858)"
+           hx-get="/api/memory/list" hx-trigger="keyup changed delay:300ms"
+           hx-target="#timeline-container" hx-include="[name=keyword],[name=type_filter]"
+           style="width:140px;">
+    <span style="font:400 10px/28px 'JetBrains Mono',monospace;color:var(--text-muted);margin-left:auto;"
+          hx-get="/api/memory/list" hx-trigger="load" hx-swap="none"
+          id="result-count">-- entries</span>
+  </div>
+
+  <!-- ── Timeline ── -->
+  <div id="timeline-loading" class="htmx-indicator loading-spinner">Searching...</div>
+  <div id="timeline-container" class="timeline"
+       hx-get="/api/memory/list" hx-trigger="load" hx-swap="innerHTML">
+    <div class="empty-state">
+      <div class="empty-icon">📭</div>
+      <div class="empty-title">No memories yet</div>
+      <div class="empty-desc">Create your first investment thesis, decision record, or research note.</div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ═══ Sidebar ═══ -->
+<aside class="journal-sidebar">
+  <div hx-get="/api/memory/analytics" hx-trigger="load, every 60s" hx-swap="innerHTML" id="sidebar-content">
+    <div class="side-section">
+      <div class="side-title">Loading analytics...</div>
+    </div>
+  </div>
+</aside>
+
+</div><!-- /shell -->
+
+<!-- ═══ Entry Detail / Edit Modal ═══ -->
+<div x-show="modalOpen" class="modal-overlay" x-transition @click.self="closeModal()" x-cloak>
+  <div class="modal-panel" @click.stop>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="modal-title" x-text="modalTitle"></div>
+      <button @click="closeModal()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">&#xD7;</button>
+    </div>
+
+    <form id="entry-form"
+          hx-post="/api/memory/create"
+          hx-target="#timeline-container"
+          hx-swap="innerHTML"
+          @submit="closeModal()">
+      <input type="hidden" name="id" x-model="form.id">
+
+      <!-- Type -->
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <select class="form-select" x-model="form.type" name="type">
+          <option value="thesis">Thesis</option>
+          <option value="decision">Decision</option>
+          <option value="note">Note</option>
+          <option value="reflection">Reflection</option>
+        </select>
+      </div>
+
+      <!-- Title -->
+      <div class="form-group">
+        <label class="form-label">Title</label>
+        <input class="form-input" type="text" name="title" x-model="form.title" placeholder="e.g. Wuliangye consumer recovery thesis" required>
+      </div>
+
+      <!-- Content -->
+      <div class="form-group">
+        <label class="form-label">Content (Markdown)</label>
+        <textarea class="form-textarea" name="content" x-model="form.content" placeholder="## Investment Logic&#10;&#10;..."></textarea>
+      </div>
+
+      <!-- Ticker + Tags -->
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tickers (comma-separated)</label>
+          <input class="form-input" type="text" name="ticker_str" x-model="form.tickerStr" placeholder="000858,600519">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tags (comma-separated)</label>
+          <input class="form-input" type="text" name="tags_str" x-model="form.tagsStr" placeholder="consumer, baijiu, value">
+        </div>
+      </div>
+
+      <!-- Thesis fields (only when type=thesis) -->
+      <template x-if="form.type === 'thesis'">
+        <div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Confidence (0.0 - 1.0)</label>
+              <input class="form-input" type="number" name="confidence" x-model="form.confidence" min="0" max="1" step="0.05" value="0.7">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Target Price</label>
+              <input class="form-input" type="number" name="target_price" x-model="form.targetPrice" step="0.01" placeholder="180.00">
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Decision fields (only when type=decision) -->
+      <template x-if="form.type === 'decision'">
+        <div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Action</label>
+              <select class="form-select" name="decision_type" x-model="form.decisionType">
+                <option value="buy">Buy</option>
+                <option value="sell">Sell</option>
+                <option value="hold">Hold</option>
+                <option value="add">Add</option>
+                <option value="reduce">Reduce</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Price</label>
+              <input class="form-input" type="number" name="decision_price" x-model="form.decisionPrice" step="0.01">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mood</label>
+            <select class="form-select" name="mood" x-model="form.mood">
+              <option value="">--</option>
+              <option value="calm">Calm</option>
+              <option value="confident">Confident</option>
+              <option value="excited">Excited</option>
+              <option value="anxious">Anxious</option>
+              <option value="fearful">Fearful</option>
+              <option value="uncertain">Uncertain</option>
+            </select>
+          </div>
+        </div>
+      </template>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+        <button type="button" class="btn btn-ghost" @click="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Entry</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ Alpine.js State ═══ -->
+<script>
+function journalState() {
+  return {
+    modalOpen: false,
+    modalTitle: 'New Entry',
+    filters: { keyword: '', type: '', ticker: '' },
+    form: {
+      id: 0, type: 'thesis', title: '', content: '',
+      tickerStr: '', tagsStr: '',
+      confidence: 0.7, targetPrice: null,
+      decisionType: 'buy', decisionPrice: null, mood: null,
+    },
+
+    openModal(type) {
+      this.form = {
+        id: 0, type: type, title: '', content: '',
+        tickerStr: '', tagsStr: '',
+        confidence: type === 'thesis' ? 0.7 : null, targetPrice: null,
+        decisionType: 'buy', decisionPrice: null, mood: null,
+      };
+      this.modalTitle = type === 'thesis' ? 'New Investment Thesis' :
+                        type === 'decision' ? 'Record Decision' :
+                        type === 'reflection' ? 'Write Reflection' : 'New Research Note';
+      this.modalOpen = true;
+    },
+
+    editEntry(entry) {
+      this.form = {
+        id: entry.id,
+        type: entry.type,
+        title: entry.title,
+        content: entry.content,
+        tickerStr: (entry.ticker || []).join(', '),
+        tagsStr: (entry.tags || []).join(', '),
+        confidence: entry.confidence,
+        targetPrice: entry.thesis?.target_price || null,
+        decisionType: entry.decision?.type || 'buy',
+        decisionPrice: entry.decision?.price || null,
+        mood: entry.decision?.mood || null,
+      };
+      this.modalTitle = 'Edit: ' + entry.title;
+      this.modalOpen = true;
+    },
+
+    closeModal() {
+      this.modalOpen = false;
+    },
+  };
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+<!-- Jinja2 Macros for V3 Templates -->
+{% macro fmt_pct(value) -%}
+  {% if value is not none %}{{ "%.1f"|format(value * 100) }}%{% else %}--{% endif %}
+{%- endmacro %}
+
+{% macro fmt_date(date_str) -%}
+  {% if date_str and date_str|length >= 10 %}{{ date_str[:10] }}{% else %}--{% endif %}
+{%- endmacro %}
+
+{% macro fmt_count(value) -%}
+  {% if value is not none %}{{ value }}{% else %}0{% endif %}
+{%- endmacro %}
