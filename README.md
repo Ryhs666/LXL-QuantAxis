@@ -1,12 +1,12 @@
 # LXL·QuantAxis
 
-> **AI-Native Quantitative Investment Research Platform**  
-> Convert investment ideas into validated research — without writing strategy code.
+> **AI-Powered Personal Investment Research Operating System**  
+> Not a prediction engine. Not a trading bot. A **learning system** for serious investors.
 
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](.)
+[![Tests](https://img.shields.io/badge/tests-400+-brightgreen)](.)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.0-orange)](https://github.com/Ryhs666/LXL-QuantAxis/releases/tag/v2.0.0)
+[![Version](https://img.shields.io/badge/version-3.0.0-orange)](https://github.com/Ryhs666/LXL-QuantAxis/releases/tag/v3.0-memory-showcase)
 
 ---
 
@@ -218,6 +218,25 @@ Python 3.12 · Flask · Pandas/NumPy · Plotly · SQLite · JWT/bcrypt · akshar
 | [Contributing](CONTRIBUTING.md) | Dev setup, conventions |
 | [Changelog](CHANGELOG.md) | All versions |
 | [Release Notes](docs/RELEASE_NOTES_v2.0.0.md) | v2.0.0 details |
+| [V3 Memory Release](docs/releases/V3_MEMORY_RELEASE.md) | v3.0 memory showcase |
+| [V3 Architecture](docs/V3_PRODUCT_ARCHITECTURE.md) | Full V3 product design |
+
+---
+
+## V2 → V3 Evolution
+
+| V2.0 Showcase | V3.0 Memory Showcase |
+|---------------|---------------------|
+| AI Research Pipeline (one-shot) | **Investment Memory System** (persistent) |
+| Convert idea → backtest → report | **Research → Predict → Act → Track → Learn** |
+| Stateless — every run starts fresh | **Stateful — lifetime research accumulates** |
+| Technical factors only | **+ Investment thesis lifecycle tracking** |
+| No outcome tracking | **Confidence calibration + hit rate analytics** |
+| 9 disconnected pages | **Unified journal with FTS5 search** |
+
+> **LXL·QuantAxis is an investment learning system, not a prediction engine.**  
+> It does not tell you what stocks will go up.  
+> It helps you understand your own judgment — what you're good at, where you're overconfident, and how to get better.
 
 ## License
 
