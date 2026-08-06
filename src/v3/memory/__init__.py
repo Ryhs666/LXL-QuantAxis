@@ -11,24 +11,32 @@ Four memory types (single table, type discriminator):
   - reflection: Lessons learned (pattern recognition, rule evolution)
 
 Public API:
-  - MemoryEntry:    Immutable dataclass for all memory types
-  - MemoryConfig:   Configuration (DB path, defaults)
-  - MemoryDatabase: SQLite connection + schema management
+  - MemoryEntry:      Immutable dataclass for all memory types
+  - MemoryConfig:     Configuration (DB path, defaults)
+  - MemoryDatabase:   SQLite connection + schema management
   - MemoryRepository: CRUD + FTS5 search
+  - MemorySearch:     Advanced search with multi-filter support
+  - MemoryAnalytics:  Aggregate statistics + confidence calibration
 """
 
 from __future__ import annotations
 
+from src.v3.memory.analytics import MemoryAnalytics
 from src.v3.memory.config import MemoryConfig
 from src.v3.memory.database import MemoryDatabase
 from src.v3.memory.models import ENTRY_TYPE_LABELS, ENTRY_TYPES, MemoryEntry
 from src.v3.memory.repository import MemoryRepository
+from src.v3.memory.search import MemorySearch, SearchFilters, find_similar
 
 __all__ = [
     "ENTRY_TYPES",
     "ENTRY_TYPE_LABELS",
+    "MemoryAnalytics",
     "MemoryConfig",
     "MemoryDatabase",
     "MemoryEntry",
     "MemoryRepository",
+    "MemorySearch",
+    "SearchFilters",
+    "find_similar",
 ]
