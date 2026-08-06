@@ -30,9 +30,9 @@ def _is_htmx() -> bool:
 
 @v3_ws_bp.route("/workspace")
 @token_required
-def workspace_page(current_user):
+def workspace_page():
     """Personal Investment Workspace — daily driver dashboard."""
-    return render_template("v3/workspace.html", current_user=current_user)
+    return render_template("v3/workspace.html")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -41,7 +41,7 @@ def workspace_page(current_user):
 
 @v3_ws_bp.route("/api/workspace/dashboard")
 @token_required
-def api_dashboard(current_user):
+def api_dashboard():
     """Full dashboard data — all panels in one response."""
     svc = _get_service()
     dash = svc.get_dashboard()
@@ -72,7 +72,7 @@ def api_dashboard(current_user):
 
 @v3_ws_bp.route("/api/workspace/watchlist")
 @token_required
-def api_watchlist(current_user):
+def api_watchlist():
     """Get watchlist entries."""
     svc = _get_service()
     items = svc.get_watchlist()
@@ -83,7 +83,7 @@ def api_watchlist(current_user):
 
 @v3_ws_bp.route("/api/workspace/watchlist", methods=["POST"])
 @token_required
-def api_watchlist_add(current_user):
+def api_watchlist_add():
     """Add a watchlist entry."""
     data = request.get_json(silent=True) or request.form.to_dict()
     ticker_str = (data.get("ticker") or "").strip()
@@ -107,7 +107,7 @@ def api_watchlist_add(current_user):
 
 @v3_ws_bp.route("/api/workspace/watchlist/<int:entry_id>", methods=["DELETE"])
 @token_required
-def api_watchlist_remove(current_user, entry_id):
+def api_watchlist_remove(entry_id):
     """Remove a watchlist entry."""
     svc = _get_service()
     ok = svc.remove_watchlist(entry_id)
@@ -125,7 +125,7 @@ def api_watchlist_remove(current_user, entry_id):
 
 @v3_ws_bp.route("/api/workspace/queue")
 @token_required
-def api_queue(current_user):
+def api_queue():
     """Get research queue entries."""
     svc = _get_service()
     items = svc.get_queue()
@@ -136,7 +136,7 @@ def api_queue(current_user):
 
 @v3_ws_bp.route("/api/workspace/queue", methods=["POST"])
 @token_required
-def api_queue_add(current_user):
+def api_queue_add():
     """Add a queue entry."""
     data = request.get_json(silent=True) or request.form.to_dict()
     ticker_str = (data.get("ticker") or "").strip()
@@ -157,7 +157,7 @@ def api_queue_add(current_user):
 
 @v3_ws_bp.route("/api/workspace/queue/<int:entry_id>/done", methods=["PUT"])
 @token_required
-def api_queue_done(current_user, entry_id):
+def api_queue_done(entry_id):
     """Mark a queue item as done."""
     svc = _get_service()
     ok = svc.mark_queue_done(entry_id)
@@ -175,7 +175,7 @@ def api_queue_done(current_user, entry_id):
 
 @v3_ws_bp.route("/api/workspace/theses")
 @token_required
-def api_theses(current_user):
+def api_theses():
     """Get active theses."""
     svc = _get_service()
     items = svc.get_active_theses()
@@ -186,7 +186,7 @@ def api_theses(current_user):
 
 @v3_ws_bp.route("/api/workspace/theses/<int:entry_id>/outcome", methods=["POST"])
 @token_required
-def api_thesis_outcome(current_user, entry_id):
+def api_thesis_outcome(entry_id):
     """Mark a thesis outcome (correct/wrong)."""
     data = request.get_json(silent=True) or {}
     status = data.get("status", "").strip()
@@ -214,7 +214,7 @@ def api_thesis_outcome(current_user, entry_id):
 
 @v3_ws_bp.route("/api/workspace/portfolio")
 @token_required
-def api_portfolio(current_user):
+def api_portfolio():
     """Get portfolio overview (read-only from V2 trades.db)."""
     svc = _get_service()
     data = svc.get_portfolio()
@@ -229,7 +229,7 @@ def api_portfolio(current_user):
 
 @v3_ws_bp.route("/api/workspace/pending-reviews")
 @token_required
-def api_pending_reviews(current_user):
+def api_pending_reviews():
     """Get pending thesis reviews."""
     svc = _get_service()
     items = svc.get_pending_reviews()

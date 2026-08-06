@@ -107,7 +107,7 @@ def _parse_form(data: dict) -> MemoryEntry:
 
 @v3_bp.route("/api/memory/list")
 @token_required
-def api_memory_list(current_user):
+def api_memory_list():
     filters = SearchFilters(
         keyword=request.args.get("keyword"),
         entry_type=request.args.get("type_filter") or request.args.get("type"),
@@ -135,7 +135,7 @@ def api_memory_list(current_user):
 
 @v3_bp.route("/api/memory/create", methods=["POST"])
 @token_required
-def api_memory_create(current_user):
+def api_memory_create():
     data = request.get_json(silent=True) or {} if request.is_json else request.form.to_dict()
 
     try:
@@ -173,7 +173,7 @@ def api_memory_create(current_user):
 
 @v3_bp.route("/api/memory/<int:entry_id>")
 @token_required
-def api_memory_detail(current_user, entry_id):
+def api_memory_detail(entry_id):
     entry = _get_repo().get_by_id(entry_id)
     if entry is None:
         return jsonify({"error": "not_found"}), 404
@@ -182,7 +182,7 @@ def api_memory_detail(current_user, entry_id):
 
 @v3_bp.route("/api/memory/<int:entry_id>", methods=["PUT"])
 @token_required
-def api_memory_update(current_user, entry_id):
+def api_memory_update(entry_id):
     data = request.get_json(silent=True) or {}
     try:
         if isinstance(data.get("ticker"), list):
@@ -207,7 +207,7 @@ def api_memory_update(current_user, entry_id):
 
 @v3_bp.route("/api/memory/<int:entry_id>", methods=["DELETE"])
 @token_required
-def api_memory_delete(current_user, entry_id):
+def api_memory_delete(entry_id):
     ok = _get_repo().delete(entry_id)
     if not ok:
         return jsonify({"error": "not_found"}), 404
@@ -224,7 +224,7 @@ def api_memory_delete(current_user, entry_id):
 
 @v3_bp.route("/api/memory/<int:entry_id>/review", methods=["POST"])
 @token_required
-def api_memory_review(current_user, entry_id):
+def api_memory_review(entry_id):
     entry = _get_repo().get_by_id(entry_id)
     if entry is None:
         return jsonify({"error": "not_found"}), 404
@@ -250,7 +250,7 @@ def api_memory_review(current_user, entry_id):
 
 @v3_bp.route("/api/memory/analytics")
 @token_required
-def api_memory_analytics(current_user):
+def api_memory_analytics():
     a = MemoryAnalytics(_get_repo()._db)
     stats = a.get_stats()
     cal = a.get_calibration()
@@ -293,7 +293,7 @@ def api_memory_analytics(current_user):
 
 @v3_bp.route("/api/memory/pending-reviews")
 @token_required
-def api_memory_pending_reviews(current_user):
+def api_memory_pending_reviews():
     a = MemoryAnalytics(_get_repo()._db)
     pending = a.get_pending_reviews(min_days_since_creation=0)
     return jsonify({"pending_reviews": pending, "total": len(pending)})
@@ -303,7 +303,7 @@ def api_memory_pending_reviews(current_user):
 
 @v3_bp.route("/api/memory/<int:entry_id>/related")
 @token_required
-def api_memory_related(current_user, entry_id):
+def api_memory_related(entry_id):
     searcher = MemorySearch(_get_repo()._db)
     related = searcher.find_related(entry_id=entry_id)
     return jsonify({
@@ -314,7 +314,7 @@ def api_memory_related(current_user, entry_id):
 
 @v3_bp.route("/api/memory/<int:entry_id>/similar")
 @token_required
-def api_memory_similar(current_user, entry_id):
+def api_memory_similar(entry_id):
     similar = find_similar(_get_repo()._db, entry_id, limit=10)
     return jsonify({
         "similar": [_entry_to_dict(e) for e in similar],
